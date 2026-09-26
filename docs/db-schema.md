@@ -5,7 +5,7 @@ At about 25k complaints no partitioning or hypertables are needed.
 
 ## 1. Overview
 
-**Loaded from the CSVs** (all columns kept): `systems`, `complaints`, `meter_reads`, `monthly_kpis`, `ai_pilot_2025`, `unit_costs`.
+**Loaded from the CSVs** (all columns kept): `systems`, `complaints`, `meter_reads`, `contact_centre_staffing`, `monthly_kpis`, `ai_pilot_2025`, `unit_costs`.
 **Supporting reference tables:** `regions`, `region_systems`, `accounts`, `categories`, `ai_agents`, `app_settings`.
 **New workflow tables:** `staff`, `classifications`, `agent_runs`, `draft_responses`, `action_items`, `sim_scenarios`, and (optional) `chat_sessions`, `chat_messages`.
 **Views:** the dashboards read from SQL views (section 4).
@@ -298,10 +298,11 @@ CREATE TABLE chat_messages (
 
 | View | What it returns | Feeds |
 |---|---|---|
-| `v_case_sla` | Each complaint with days open (from `as_of_date`), days overdue against `sla_days`, and live breach status. Replaces the unreliable `sla_breach` on open cases. | Worklist, D1 |
+| `v_case_sla` | Every complaint with its domain, days open (`days_to_close` if closed, else from `as_of_date`), days overdue against `sla_days`, live breach status (`days > sla_days`) and age band. Replaces the unreliable `sla_breach` on open cases. | Worklist, D1 |
 | `v_case_profile` | For each category × region × source system, over closed cases: count, average days, information-only share, transfer rate, reopen rate, most common resolution. | Classification, agent context, C2 |
 | `v_worklist` | Open cases joined with the current classification, draft status and open action items, ranked by breach risk and days overdue. | C1 |
-| `v_backlog_flow` | Per month: opened, closed, cumulative backlog, backlog by age band and domain. | D1 |
+| `v_backlog_flow` | Per month: opened, closed, net change, backlog at month end. | D1 |
+| `v_backlog_breakdown` | Current open backlog counted by region, category, domain, priority, age band and breach status. | D1 |
 | `v_region_meter_complaints` | Region × month: estimated-read rate, smart penetration, billing exceptions per 1,000 accounts, and billing and metering complaints per 1,000 accounts. | D2 |
 | `v_account_history` | Every complaint per account with category, outcome, days and repeat counts. | C2, D4 |
 | `v_agent_results` | Classes per domain, fast-lane volume, drafts by status (approved, edited, rejected). | D5 |
@@ -309,32 +310,17 @@ CREATE TABLE chat_messages (
 | `v_unit_costs` | `unit_costs` as one row of named columns (`call`, `complaint_standard`, `staff_annual`, `staff_hire`, `penalty_quarter` and so on), so the simulator reads costs by name. | E7-E12 |
 | `v_score_relationship` | Regression of `regulator_satisfaction_score_of_5` on `avg_days_to_close` from `monthly_kpis` (slope and intercept). | E4 |
 
-Sketch of the two central views:
-
-```sql
-CREATE VIEW v_case_sla AS
-SELECT c.*,
-       (s.value::date - c.date_opened)               AS days_open,
-       (s.value::date - c.date_opened) - c.sla_days  AS days_overdue
-FROM complaints c
-CROSS JOIN app_settings s
-WHERE s.key = 'as_of_date' AND c.status = 'Open';
-
-CREATE VIEW v_case_profile AS
-SELECT category, region, source_system,
-       count(*)                                              AS n,
-       avg(days_to_close)                                    AS avg_days,
-       avg((resolvable_by_information_only)::int)            AS info_only_share,
-       avg((transferred_between_systems)::int)               AS transfer_rate,
-       avg((reopened)::int)                                  AS reopen_rate
-FROM complaints
-WHERE status <> 'Open'
-GROUP BY category, region, source_system;
-```
+The live definitions are in [../db/views.sql](../db/views.sql).
 
 ## 5. Load notes
 
-- Load in this order: `systems`, `regions`, `region_systems`, `ai_agents`, `categories`, `accounts` (distinct ids from the complaints file), `complaints`, `meter_reads`, `monthly_kpis`, `ai_pilot_2025`, `unit_costs`, `app_settings`.
+The schema is applied to the Tiger Data service `htc-mock-test` (`rhw3xtuwno`, DEV). To rebuild on an empty database:
+
+1. `db/schema.sql`: tables, indexes and fixed reference rows (`regions`, `ai_agents`, `categories`, `app_settings`).
+2. `db/views.sql`: all views (`CREATE OR REPLACE`, safe to re-run).
+3. `python3 db/build_seed.py`, then run `db/seed/*.sql` in name order (`ON CONFLICT DO NOTHING`, safe to re-run).
+
+- `meter_reads`, `monthly_kpis`, `ai_pilot_2025` and `contact_centre_staffing` come from the main data pack. `unit_costs` comes from the second pack, because it adds the hiring cost. The second pack's meter, KPI and pilot files differ in every row. Swap the paths in `build_seed.py` if that pack turns out to be authoritative.
 - Empty CSV cells for the open cases become NULL.
-- Set `as_of_date` to `2026-09-30`.
-- The app currently uses `Base.metadata.create_all` in [../app/main.py](../app/main.py) instead of migrations. This schema can be translated to SQLAlchemy models in [../app/models.py](../app/models.py), or run as SQL once.
+- `as_of_date` is `2026-09-30`.
+- The app's `Base.metadata.create_all` in [../app/main.py](../app/main.py) only creates tables that have SQLAlchemy models, so it does not touch this schema.
