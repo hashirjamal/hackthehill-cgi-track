@@ -125,3 +125,118 @@ def cases(
     return fetch_page(
         db, columns="*", source=CASES_SOURCE, where=where, order=order, applied_sort=applied, pagination=pagination
     )
+
+
+# --- GET /reports/cases/{complaint_id} ---------------------------------------------------------
+
+
+class CaseContext(BaseModel):
+    case: CaseRow
+    classification: dict[str, Any] | None  # the current classification, without the raw Laya output
+    region_meter: list[dict[str, Any]]  # the region's last six months, newest first
+    profile: dict[str, Any] | None  # closed cases of the same category, region and source system
+    category_profile: dict[str, Any] | None  # closed cases of the same category, all regions
+    resolution_mix: list[dict[str, Any]]  # how closed cases of this category ended, most common first
+    account_complaints_total: int
+    account_history: list[dict[str, Any]]  # oldest first, up to history_limit
+    drafts: list[dict[str, Any]]
+    action_items: list[dict[str, Any]]
+
+
+def _rows(db: Session, sql: str, **params) -> list[dict[str, Any]]:
+    return [_plain(dict(r)) for r in db.execute(text(sql), params).mappings().all()]
+
+
+def _plain(row: dict[str, Any]) -> dict[str, Any]:
+    """Decimals to floats, so the JSON has numbers and not strings."""
+    return {k: float(v) if isinstance(v, Decimal) else v for k, v in row.items()}
+
+
+@router.get(
+    "/cases/{complaint_id}",
+    response_model=CaseContext,
+    summary="Everything known about one complaint: case, classification, meter data, history, drafts",
+)
+def case_context(
+    complaint_id: str,
+    history_limit: int = Query(20, ge=1, le=50, description="How many of the account's complaints to include"),
+    db: Session = Depends(get_db),
+):
+    case = db.execute(text(f"SELECT * FROM {CASES_SOURCE} WHERE complaint_id = :id"), {"id": complaint_id}).mappings().first()
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"complaint {complaint_id!r} not found")
+    case = _plain(dict(case))
+    category, region, source_system = case["category"], case["region"], case["source_system"]
+
+    classification = _rows(
+        db,
+        """SELECT id AS classification_id, classifier_version, created_at, as_of_date, emergency, emergency_probability,
+                  group_name, group_confidence, group_source, laya_group, subcategory, subcategory_confidence,
+                  subcategory_source, low_confidence, group_matches_data, subcategory_matches_data, priority,
+                  base_priority, base_priority_source, urgency_score, routed_team, lane, likely_cause, flags
+           FROM classifications WHERE complaint_id = :id AND is_current""",
+        id=complaint_id,
+    )
+    region_meter = _rows(
+        db,
+        """SELECT m.month, m.estimated_read_rate, m.smart_meter_penetration, m.billing_exceptions_raised,
+                  round(m.billing_exceptions_raised * 1000.0 / m.accounts, 2) AS billing_exceptions_per_1000
+           FROM meter_reads m WHERE m.region = :region AND m.month <= to_char(CAST(:as_of AS date), 'YYYY-MM')
+           ORDER BY m.month DESC LIMIT 6""",
+        region=region, as_of=case["as_of_date"],
+    )
+    profile = _rows(
+        db,
+        "SELECT * FROM v_case_profile WHERE category = :c AND region = :r AND source_system = :s",
+        c=category, r=region, s=source_system,
+    )
+    category_profile = _rows(
+        db,
+        """SELECT count(*) AS n, round(avg(days_to_close), 1) AS avg_days,
+                  round(avg(resolvable_by_information_only::int), 3) AS info_only_share,
+                  round(avg(transferred_between_systems::int), 3) AS transfer_rate,
+                  round(avg(reopened::int), 3) AS reopen_rate, round(avg(sla_breach::int), 3) AS breach_rate,
+                  round(avg(bill_correction_value), 2) AS avg_bill_correction
+           FROM complaints WHERE status <> 'Open' AND category = :c""",
+        c=category,
+    )
+    resolution_mix = _rows(
+        db,
+        """SELECT resolution_action, count(*) AS cases,
+                  round(count(*)::numeric / sum(count(*)) OVER (), 3) AS share
+           FROM complaints WHERE status <> 'Open' AND category = :c
+           GROUP BY resolution_action ORDER BY cases DESC, resolution_action""",
+        c=category,
+    )
+    total = db.execute(text("SELECT count(*) FROM complaints WHERE account_id = :a"), {"a": case["account_id"]}).scalar_one()
+    history = _rows(
+        db,
+        """SELECT complaint_id, date_opened, status, category, region, priority, resolution_action, days_to_close,
+                  reopened, complaint_seq, is_repeat, days_since_previous
+           FROM v_account_history WHERE account_id = :a ORDER BY complaint_seq LIMIT :n""",
+        a=case["account_id"], n=history_limit,
+    )
+    drafts = _rows(
+        db,
+        """SELECT draft_id, run_id, status, body, final_body, reviewed_by, reviewed_at, created_at
+           FROM draft_responses WHERE complaint_id = :id ORDER BY created_at DESC, draft_id DESC LIMIT 5""",
+        id=complaint_id,
+    )
+    actions = _rows(
+        db,
+        """SELECT action_id, action_type, description, rationale, rank, status, assigned_team, due_date
+           FROM action_items WHERE complaint_id = :id ORDER BY rank, action_id""",
+        id=complaint_id,
+    )
+    return {
+        "case": case,
+        "classification": classification[0] if classification else None,
+        "region_meter": region_meter,
+        "profile": profile[0] if profile else None,
+        "category_profile": category_profile[0] if category_profile and category_profile[0]["n"] else None,
+        "resolution_mix": resolution_mix,
+        "account_complaints_total": total,
+        "account_history": history,
+        "drafts": drafts,
+        "action_items": actions,
+    }
