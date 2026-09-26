@@ -51,3 +51,40 @@ curl -X POST localhost:8000/laya/predict -H 'content-type: application/json' -d 
   }
 }'
 ```
+
+## Complaint classification
+
+`POST /complaints/process` classifies complaints with Laya and stores the result in the `classifications` table
+(one current row per complaint, older rows kept as history). Today it runs the classification layer only; the
+domain AI agents will be called from the same endpoint later.
+
+Rules and taxonomy: `app/classification/` (`taxonomy.py` groups, routes and Laya questions, `rules.py` priority
+and flag rules, `service.py` the pipeline). Thresholds are in `app/config.py` and can be set in `.env`
+(`GROUP_CONFIDENCE_THRESHOLD`, `FLAG_THRESHOLD`, `EMERGENCY_THRESHOLD`, `AS_OF_DATE`).
+
+**Laya runs every step on every complaint**, even when the data already has a category or priority. New complaints
+have no text, so Laya reads a description of the record (category, channel, priority, region, source system,
+whether it was transferred), plus the text if there is any. The category in the data is not used to skip a step. It is
+compared with Laya's answer afterwards (`group_matches_data`, `subcategory_matches_data`). The one exception is
+priority: Northwind's priority (or the level that goes with its `sla_days`) is the starting point, and Laya's urgency
+score is used only when the complaint has neither. Flags then raise it, never lower it.
+
+If Laya's top group probability is under `GROUP_CONFIDENCE_THRESHOLD` (0.6), the group and category already in the
+data are used instead, and stage 2 is skipped. Only a complaint with no data category goes to the review queue.
+
+**The model loads once when the server starts** (plus one warm-up call), so no request pays for it. Set
+`PRELOAD_LAYA=false` to skip that in development. Answers are cached by state, so complaints that describe the same
+way share them. On CPU, Laya costs about 0.5 s per question, or about 5 s per complaint, so classify a large backlog
+as a background job.
+
+```bash
+curl -X POST localhost:8000/complaints/process -H 'content-type: application/json' -d '{
+  "as_of_date": "2026-09-30",
+  "complaints": [
+    {"complaint_id": "NW-124233", "category": "Billing - disputed amount", "priority": "P3", "sla_days": 20,
+     "channel": "Phone", "region": "Barrowdale", "source_system": "SYS-05",
+     "transferred_between_systems": false, "date_opened": "2026-09-02"}
+  ]}'
+```
+
+Tests (no model download needed): `pip install pytest && python -m pytest`.

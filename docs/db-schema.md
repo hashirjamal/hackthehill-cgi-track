@@ -27,7 +27,6 @@ erDiagram
     complaints ||--o{ draft_responses : "has"
     complaints ||--o{ action_items : "has"
     ai_agents ||--o{ agent_runs : "executes"
-    ai_agents ||--o{ classifications : "assigned"
     classifications ||--o{ agent_runs : "triggers"
     agent_runs ||--o{ draft_responses : "produces"
     agent_runs ||--o{ action_items : "produces"
@@ -76,7 +75,7 @@ CREATE TABLE accounts (
 );
 
 CREATE TABLE ai_agents (                            -- one row per domain agent
-    agent_id       TEXT PRIMARY KEY,                -- billing, metering, supply_water, service, general
+    agent_id       TEXT PRIMARY KEY,                -- billing, metering, field_services, customer_support, general
     name           TEXT NOT NULL,
     instructions   TEXT,                            -- system prompt / config version reference
     active         BOOLEAN NOT NULL DEFAULT TRUE
@@ -185,25 +184,40 @@ CREATE TABLE staff (
     team     TEXT                                     -- e.g. billing, metering, field
 );
 
--- Output of Laya + rules. History is kept; one row per complaint is current.
+-- Output of the Laya classification layer (implemented in app/models.py).
+-- History is kept; one row per complaint is current. complaint_id is not yet a foreign key
+-- because the complaints table is not loaded by the app yet.
 CREATE TABLE classifications (
-    classification_id      BIGSERIAL PRIMARY KEY,
-    complaint_id           TEXT NOT NULL REFERENCES complaints(complaint_id),
-    agent_id               TEXT NOT NULL REFERENCES ai_agents(agent_id),   -- domain
-    fix_type               TEXT NOT NULL CHECK (fix_type IN
-                              ('info_only','bill_correction','field_visit','payment_plan','appointment','complex')),
-    info_only_prob         NUMERIC(4,3),
-    urgency_score          SMALLINT CHECK (urgency_score BETWEEN 1 AND 5),
-    likely_estimated_read  BOOLEAN NOT NULL DEFAULT FALSE,
-    breach_risk            NUMERIC(4,3),
-    fast_lane_eligible     BOOLEAN NOT NULL DEFAULT FALSE,
-    routed_team            TEXT,
-    rule_hits              JSONB,                     -- which custom rules fired
-    laya_output            JSONB,                     -- raw Laya answers
-    classifier_version     TEXT,
+    id                     BIGSERIAL PRIMARY KEY,
+    complaint_id           TEXT NOT NULL,
+    classifier_version     TEXT NOT NULL,
     is_current             BOOLEAN NOT NULL DEFAULT TRUE,
-    classified_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    as_of_date             DATE NOT NULL,             -- days open are measured to this date
+    input                  JSON NOT NULL,             -- the complaint as submitted
+    emergency              BOOLEAN NOT NULL,
+    emergency_probability  REAL,
+    group_name             TEXT,                      -- Billing, Metering, Field services, Customer support, General
+    group_confidence       REAL,                      -- Laya's top probability
+    group_source           TEXT,                      -- laya, or data on a low-confidence fallback
+    laya_group             TEXT,                      -- Laya's own pick, kept for comparison
+    subcategory            TEXT,                      -- a Northwind data category
+    subcategory_confidence REAL,
+    subcategory_source     TEXT,                      -- laya or data
+    low_confidence         BOOLEAN NOT NULL DEFAULT FALSE,  -- Laya's top probability was under the threshold
+    group_matches_data     BOOLEAN,                   -- Laya's group vs the data category; NULL if the data has none
+    subcategory_matches_data BOOLEAN,
+    priority               TEXT NOT NULL,             -- P1..P3 after flags
+    base_priority          TEXT NOT NULL,             -- before flags
+    base_priority_source   TEXT NOT NULL,             -- data, laya or emergency
+    urgency_score          REAL,
+    routed_team            TEXT NOT NULL,
+    lane                   TEXT NOT NULL,             -- emergency, review, quick_lane, standard
+    likely_cause           TEXT,                      -- estimated_reading
+    flags                  JSON NOT NULL,             -- flags that fired, with reasons
+    laya_output            JSON NOT NULL              -- raw Laya answers, for audit
 );
+CREATE INDEX ON classifications (complaint_id);
 CREATE UNIQUE INDEX one_current_classification
     ON classifications (complaint_id) WHERE is_current;
 
@@ -212,7 +226,7 @@ CREATE TABLE agent_runs (
     run_id            BIGSERIAL PRIMARY KEY,
     complaint_id      TEXT NOT NULL REFERENCES complaints(complaint_id),
     agent_id          TEXT NOT NULL REFERENCES ai_agents(agent_id),
-    classification_id BIGINT REFERENCES classifications(classification_id),
+    classification_id BIGINT REFERENCES classifications(id),
     status            TEXT NOT NULL CHECK (status IN ('running','succeeded','failed')),
     model             TEXT,
     context           JSONB,                          -- profile, account history, meter data given to the agent

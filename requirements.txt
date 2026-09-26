@@ -6,3 +6,4 @@ pydantic-settings
 # Laya decision model. On a machine without a GPU, install CPU torch first to skip the CUDA download:
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 laya
+pytest

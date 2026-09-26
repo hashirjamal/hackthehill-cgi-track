@@ -48,29 +48,33 @@ Priority: **P0** = must have for the demo, **P1** = should have, **P2** = only i
 
 ### A. Classification (P0)
 
-Runs on every open complaint (the 1,599 backlog) and on each new one.
+Runs on every open complaint (the 1,599 backlog) and on each new one. Implemented in `app/classification/`, called by `POST /complaints/process`.
 
 | ID | Requirement |
 |---|---|
-| A1 | Classify each complaint with **Laya** and custom rules. Store the result in the DB (never recompute on screen). |
-| A2 | Classes to store: **domain** (which AI agent handles it), **fix type** (information only, bill correction, field visit, payment plan, appointment, complex), **information-only probability**, **urgency**, **likely estimated read**, **breach risk**, **fast-lane eligible**. |
-| A3 | Custom rules cover the deterministic parts: breach risk (days open against `sla_days`), estimated-read flag (billing or metering case in a region with a high estimated-read rate), and routing to the right team. |
-| A4 | Keep the rules that fired and Laya's raw output next to each classification, so any decision can be explained. |
-| A5 | A complaint can be reclassified. Keep history and mark one classification as current. |
+| A1 | Classify with **Laya** in two stages. Stage 1 picks the **group** (Billing, Metering, Field services, Customer support, General), an **urgency score** and the **text flags** in one call. Stage 2 picks the **subcategory** (a Northwind data category), only for groups with more than one option. |
+| A2 | **Laya runs every step on every complaint**, even when the data already has a category or priority. New complaints have no text, so Laya reads a description of the record's fields (and the text, if any). The data category is not used to skip a step. It is compared with Laya's answer and both are stored. |
+| A3 | **Emergency screen** runs first. Emergencies go to dispatch as P1 and skip everything else. |
+| A4 | **Low confidence falls back to the data:** if the stage 1 top probability is below the threshold (default 0.6), use the group and category already in the data, and skip stage 2. Only a complaint with no data category goes to the general review queue. |
+| A5 | **Priority:** start from Northwind's priority (or the level that goes with its SLA target). Laya's urgency score (0 = P3, 1 = P2, 2 = P1) is used only when the complaint has neither. Flags can only raise it, the highest required level wins, capped at P1. This is the one exception to A2, because without text Laya's urgency score is not meaningful. |
+| A6 | **Text flags (Laya):** disconnection (at least P2), vulnerable customer (P1), escalation threat (at least P2), repeat contact (+1 level), unusually high bill (at least P2), info only (quick lane). |
+| A7 | **Data flags (code):** legacy region (Barrowdale or Dunmoor with an estimated-read or no-read complaint: tag the likely cause and route to Metering), regulator referral (at least P2), deadline risk (over 75% of the target: +1 level). |
+| A8 | **Routing** by subcategory to a team (Billing team, Metering team, Collections, Network operations, Water operations, Field services, Customer care leads, General review queue). |
+| A9 | Store the result, the flags that fired, whether Laya's group and subcategory match the data category, and Laya's raw answers. Reclassifying keeps history and marks one row current. |
 
-**Input to Laya:** one short text built from the structured fields (category, channel, priority, region, source system, days open, region's estimated-read rate, historic profile). The dataset has no complaint text.
+**Input to Laya:** a description of the record (category, channel, priority and target, region, source system, transferred or not), plus the text if any. There is no complaint text in the Northwind data. The model loads once at server start.
 
 ### B. Domain AI agents (P0)
 
 One agent per domain. They share the same code and differ only in configuration (instructions, historic patterns, reply templates).
 
-| Domain agent | Complaint categories |
+| Domain agent | Group (subcategories) |
 |---|---|
-| Billing | Billing - disputed amount, Payment - plan or arrears |
-| Metering | Billing - estimated read, Metering - no read taken |
-| Supply and water | Supply - interruption, Water - pressure or quality |
-| Service | Service - poor communication, Service - missed appointment |
-| General | Other (also the fallback) |
+| Billing | Billing (disputed amount, estimated read, payment plan or arrears) |
+| Metering | Metering (no read taken) |
+| Field services | Field services (supply interruption, water pressure or quality, missed appointment) |
+| Customer support | Customer support (poor communication) |
+| General | General (other, and the review queue) |
 
 | ID | Requirement |
 |---|---|
