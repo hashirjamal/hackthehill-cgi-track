@@ -180,7 +180,7 @@ Formulas (N = complaints opened in the last 12 months, t = share transferred):
   - 284 accounts appear in more than one region, so the region belongs to the complaint, not the account.
   - The data runs to 30 Sep 2026. Live calculations must use a configurable "as of" date, not today's date.
   - No currency is stated for the unit costs.
-  - The staff count is not in the data. Staff-equivalents are derived from the handling cost, which assumes the unit costs are mostly staff time.
+  - Staff numbers are in `northwind_contact_centre_staffing.csv` (region × month FTE, vacancies, attrition), loaded as `contact_centre_staffing`. Total FTE fell from 380 to 333 over 24 months. The simulator's staff-equivalents are still derived from the handling cost.
   - The second data pack (Additional CGI Files) adds one unit cost: recruiting and onboarding, 11,500 per hire. Its KPI file also differs from the first for Mar to Sep 2026 (September average days is 43.8, not 38.2). Confirm which KPI file is authoritative. The simulator reads its baseline from the DB.
 
 ## 6. Non-functional requirements
