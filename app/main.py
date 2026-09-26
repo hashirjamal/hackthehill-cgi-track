@@ -12,6 +12,7 @@ from app.db import Base, engine, get_db
 from app.laya_routes import router as laya_router
 from app.laya_service import warm_up
 from app.models import Item
+from app.reports import router as reports_router
 
 
 @asynccontextmanager
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Hack the Hill API", lifespan=lifespan)
 app.include_router(laya_router)
 app.include_router(complaint_router)
+app.include_router(reports_router)
 
 
 class ItemIn(BaseModel):
