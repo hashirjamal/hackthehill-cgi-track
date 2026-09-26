@@ -1,4 +1,6 @@
-"""Backlog reports: GET /reports/backlog-flow (per month) and, next, the open backlog breakdown."""
+"""Backlog reports: GET /reports/backlog-flow (per month) and GET /reports/backlog-breakdown (open cases, grouped)."""
+from typing import Any, Literal
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -78,3 +80,72 @@ def backlog_flow(
         db, columns="*", source=source, where=outer, order=order, applied_sort=applied,
         pagination=pagination, params=inner.params,
     )
+
+
+# --- GET /reports/backlog-breakdown ------------------------------------------------------------
+
+GROUP_COLUMNS = ["region", "category", "domain", "priority", "age_band", "breached_live", "channel", "source_system"]
+GroupBy = Literal["region", "category", "domain", "priority", "age_band", "breached_live", "channel", "source_system"]
+AGE_BAND_RANK = "CASE age_band WHEN '0-5' THEN 1 WHEN '6-10' THEN 2 WHEN '11-20' THEN 3 WHEN '21-40' THEN 4 ELSE 5 END"
+METRICS = ["open_cases", "breached_cases", "at_risk_cases", "total_days_overdue", "avg_days_open", "share_of_backlog"]
+
+
+class BreakdownPage(Page[dict[str, Any]]):
+    group_by: list[str]  # the columns each row is grouped on; every item has these plus the metrics
+
+
+@router.get(
+    "/backlog-breakdown",
+    response_model=BreakdownPage,
+    summary="The open backlog grouped by any of region, category, domain, priority, age band ...",
+)
+def backlog_breakdown(
+    pagination: Pagination = Depends(),
+    group_by: list[GroupBy] = Query(["region"], description="Repeat for several, e.g. group_by=region&group_by=category"),
+    sort: str | None = Query(
+        None,
+        description="Comma-separated `name:asc|desc`, by a group_by column or a metric. Default `open_cases:desc`. "
+        f"Metrics: {', '.join(METRICS)}",
+    ),
+    region: list[str] | None = Query(None, description="Filters take repeated values, like the other reports"),
+    category: list[str] | None = Query(None),
+    domain: list[str] | None = Query(None),
+    priority: list[str] | None = Query(None),
+    age_band: list[str] | None = Query(None, description="0-5, 6-10, 11-20, 21-40, 41+"),
+    channel: list[str] | None = Query(None),
+    source_system: list[str] | None = Query(None),
+    breached: bool | None = Query(None, description="Past its SLA target as of the as_of_date"),
+    min_open_cases: int | None = Query(None, ge=1, description="Hide groups smaller than this"),
+    db: Session = Depends(get_db),
+):
+    columns = list(dict.fromkeys(group_by))
+    inner = Where("i")
+    inner.raw("status = 'Open'")
+    for column, values in (
+        ("region", region), ("category", category), ("domain", domain), ("priority", priority),
+        ("age_band", age_band), ("channel", channel), ("source_system", source_system),
+    ):
+        inner.any_of(column, values)
+    inner.flag("breached_live", breached)
+    outer = Where("o")
+    outer.compare("open_cases", ">=", min_open_cases)
+
+    group_sql = ", ".join(columns)
+    source = f"""(
+        SELECT {group_sql},
+               count(*)::int AS open_cases,
+               (count(*) FILTER (WHERE breached_live))::int AS breached_cases,
+               (count(*) FILTER (WHERE NOT breached_live AND days_open > 0.75 * sla_days))::int AS at_risk_cases,
+               COALESCE(sum(days_overdue) FILTER (WHERE breached_live), 0)::int AS total_days_overdue,
+               round(avg(days_open), 1)::float AS avg_days_open,
+               round(count(*)::numeric / sum(count(*)) OVER (), 4)::float AS share_of_backlog
+        FROM v_case_sla {inner.sql}
+        GROUP BY {group_sql}
+    ) breakdown"""
+    allowed = {c: (AGE_BAND_RANK if c == "age_band" else c) for c in columns} | {m: m for m in METRICS}
+    order, applied = order_by(sort, allowed, "open_cases:desc", group_sql)
+    page = fetch_page(
+        db, columns="*", source=source, where=outer, order=order, applied_sort=applied,
+        pagination=pagination, params=inner.params,
+    )
+    return {**page, "group_by": columns}

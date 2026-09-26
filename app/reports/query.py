@@ -50,6 +50,10 @@ class Where:
         self.params[name] = value
         return f":{name}"
 
+    def raw(self, clause: str):
+        """A fixed condition written in code (never from the request), e.g. status = 'Open'."""
+        self._clauses.append(clause)
+
     def any_of(self, column: str, values: list[Any] | None):
         """column matches any of the values (a repeated query parameter)."""
         if values:
