@@ -39,12 +39,14 @@ class Pagination:
 class Where:
     """Collects filter conditions. Each method ignores a value of None, so unset filters cost nothing."""
 
-    def __init__(self):
+    def __init__(self, prefix: str = "w"):
+        """Use a different prefix for each Where in one query, so their parameter names do not clash."""
+        self._prefix = prefix
         self._clauses: list[str] = []
         self.params: dict[str, Any] = {}
 
     def _bind(self, value: Any) -> str:
-        name = f"w{len(self.params)}"
+        name = f"{self._prefix}{len(self.params)}"
         self.params[name] = value
         return f":{name}"
 
@@ -99,13 +101,25 @@ def order_by(sort: str | None, allowed: dict[str, str], default: str, tiebreaker
 
 
 def fetch_page(
-    db: Session, *, columns: str, source: str, where: Where, order: str, applied_sort: list[str], pagination: Pagination
+    db: Session,
+    *,
+    columns: str,
+    source: str,
+    where: Where,
+    order: str,
+    applied_sort: list[str],
+    pagination: Pagination,
+    params: dict[str, Any] | None = None,
 ) -> dict:
-    """Run the count and the page query. `source` is a table, view or `(subquery) alias`."""
-    total = db.execute(text(f"SELECT count(*) FROM {source} {where.sql}"), where.params).scalar_one()
+    """Run the count and the page query. `source` is a table, view or `(subquery) alias`.
+
+    `params` are extra bound values used inside `source` itself (see the backlog-flow endpoint).
+    """
+    bound = {**(params or {}), **where.params}
+    total = db.execute(text(f"SELECT count(*) FROM {source} {where.sql}"), bound).scalar_one()
     rows = db.execute(
         text(f"SELECT {columns} FROM {source} {where.sql} {order} LIMIT :_limit OFFSET :_offset"),
-        {**where.params, "_limit": pagination.page_size, "_offset": (pagination.page - 1) * pagination.page_size},
+        {**bound, "_limit": pagination.page_size, "_offset": (pagination.page - 1) * pagination.page_size},
     ).mappings().all()
     return {
         "items": [dict(r) for r in rows],
