@@ -1,9 +1,13 @@
 from datetime import date, datetime
 
 from sqlalchemy import JSON, BigInteger, Boolean, Date, DateTime, Float, Index, Integer, String, Text, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+
+# JSON everywhere, JSONB on Postgres to match db/schema.sql.
+JsonType = JSON().with_variant(JSONB(), "postgresql")
 
 
 class Item(Base):
@@ -38,7 +42,7 @@ class Classification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     as_of_date: Mapped[date] = mapped_column(Date)
 
-    input: Mapped[dict] = mapped_column(JSON)  # the complaint as submitted
+    input: Mapped[dict] = mapped_column(JsonType)  # the complaint as submitted
 
     emergency: Mapped[bool] = mapped_column(Boolean)
     emergency_probability: Mapped[float | None] = mapped_column(Float)  # NULL when there was no text
@@ -60,5 +64,5 @@ class Classification(Base):
     routed_team: Mapped[str] = mapped_column(String(64))
     lane: Mapped[str] = mapped_column(String(16))  # emergency, review, quick_lane, standard
     likely_cause: Mapped[str | None] = mapped_column(String(32))
-    flags: Mapped[list] = mapped_column(JSON)  # flags that fired
-    laya_output: Mapped[dict] = mapped_column(JSON)  # raw Laya answers, for audit
+    flags: Mapped[list] = mapped_column(JsonType)  # flags that fired
+    laya_output: Mapped[dict] = mapped_column(JsonType)  # raw Laya answers, for audit

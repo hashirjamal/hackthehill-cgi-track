@@ -22,7 +22,7 @@ erDiagram
     accounts ||--o{ complaints : "raises"
     categories ||--o{ complaints : "classified as"
     ai_agents ||--o{ categories : "handles"
-    complaints ||--o{ classifications : "has"
+    complaints ||--o{ classifications : "by complaint_id, no foreign key"
     complaints ||--o{ agent_runs : "has"
     complaints ||--o{ draft_responses : "has"
     complaints ||--o{ action_items : "has"

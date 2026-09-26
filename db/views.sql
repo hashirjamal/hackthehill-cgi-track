@@ -1,4 +1,5 @@
 -- Dashboard and simulator views (docs/db-schema.md section 4). Safe to re-run.
+-- Views whose columns changed are dropped and recreated (DROP VIEW IF EXISTS), the rest use CREATE OR REPLACE.
 -- "Live" figures use app_settings.as_of_date, never now(): the data ends 2026-09-30.
 
 -- Every complaint with live SLA status. Replaces the unreliable source sla_breach on open cases.
@@ -37,18 +38,25 @@ WHERE status <> 'Open'
 GROUP BY category, region, source_system;
 
 -- Ranked worklist: open cases with current classification, latest draft and open actions.
-CREATE OR REPLACE VIEW v_worklist AS
+-- Most urgent first: classified priority (or the data priority when not classified yet), then days overdue.
+-- Dropped first because the column list changed with the classification layer.
+DROP VIEW IF EXISTS v_worklist;
+CREATE VIEW v_worklist AS
 SELECT v.complaint_id, v.account_id, v.date_opened, v.channel, v.category, v.priority,
        v.region, v.source_system, v.sla_days, v.days_open, v.days_overdue, v.breached_live,
-       COALESCE(cl.agent_id, v.domain)   AS domain,
-       cl.classification_id, cl.fix_type, cl.info_only_prob, cl.urgency_score,
-       cl.likely_estimated_read, cl.breach_risk, cl.fast_lane_eligible, cl.routed_team,
+       COALESCE(ag.agent_id, v.domain)   AS domain,
+       cl.id                             AS classification_id,
+       cl.group_name, cl.subcategory,
+       COALESCE(cl.priority, v.priority) AS classified_priority,
+       cl.base_priority, cl.base_priority_source,
+       cl.routed_team, cl.lane, cl.likely_cause, cl.low_confidence, cl.flags,
        m.estimated_read_rate             AS region_estimated_read_rate,
        d.draft_id, d.status              AS draft_status,
        COALESCE(a.open_actions, 0)       AS open_actions,
        a.next_action
 FROM v_case_sla v
 LEFT JOIN classifications cl ON cl.complaint_id = v.complaint_id AND cl.is_current
+LEFT JOIN ai_agents ag ON ag.name = cl.group_name
 LEFT JOIN meter_reads m ON m.region = v.region AND m.month = to_char(v.as_of_date, 'YYYY-MM')
 LEFT JOIN LATERAL (
     SELECT draft_id, status FROM draft_responses dr
@@ -62,7 +70,8 @@ LEFT JOIN LATERAL (
     WHERE ai.complaint_id = v.complaint_id AND ai.status IN ('open', 'in_progress')
 ) a ON TRUE
 WHERE v.status = 'Open'
-ORDER BY cl.breach_risk DESC NULLS LAST, v.days_overdue DESC;
+ORDER BY CASE COALESCE(cl.priority, v.priority) WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END,
+         v.days_overdue DESC;
 
 -- D1: opened against closed per month, with the running backlog.
 CREATE OR REPLACE VIEW v_backlog_flow AS
@@ -119,11 +128,13 @@ SELECT account_id, complaint_id, date_opened, date_closed, status, category, reg
 FROM complaints
 WINDOW w AS (PARTITION BY account_id ORDER BY date_opened, complaint_id);
 
--- D5: classification and agent results per domain.
-CREATE OR REPLACE VIEW v_agent_results AS
+-- D5: classification and agent results per domain. A classification counts for the agent whose name
+-- is its group; the quick lane is the info-only lane.
+DROP VIEW IF EXISTS v_agent_results;
+CREATE VIEW v_agent_results AS
 SELECT ag.agent_id, ag.name,
-       (SELECT count(*) FROM classifications c WHERE c.agent_id = ag.agent_id AND c.is_current)                        AS classified,
-       (SELECT count(*) FROM classifications c WHERE c.agent_id = ag.agent_id AND c.is_current AND c.fast_lane_eligible) AS fast_lane,
+       (SELECT count(*) FROM classifications c WHERE c.group_name = ag.name AND c.is_current)                            AS classified,
+       (SELECT count(*) FROM classifications c WHERE c.group_name = ag.name AND c.is_current AND c.lane = 'quick_lane') AS fast_lane,
        (SELECT count(*) FROM agent_runs r WHERE r.agent_id = ag.agent_id)                                               AS runs,
        (SELECT count(*) FROM agent_runs r WHERE r.agent_id = ag.agent_id AND r.status = 'failed')                       AS runs_failed,
        d.drafts, d.drafts_pending, d.drafts_approved, d.drafts_edited, d.drafts_rejected, d.drafts_sent

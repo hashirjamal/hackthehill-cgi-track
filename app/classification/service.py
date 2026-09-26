@@ -12,7 +12,8 @@ a complaint with no data category goes to the review queue.
 from datetime import date
 from typing import Any
 
-from sqlalchemy import update
+from sqlalchemy import text, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.classification import rules
@@ -186,6 +187,16 @@ def classify_complaint(
             (subcategory.name == data_category) if data_category and subcategory and subcategory.source == "laya" else None
         ),
     ), raw
+
+
+def db_as_of_date(db: Session) -> date | None:
+    """The as_of_date row in app_settings (db/schema.sql), or None when the table or row is not there."""
+    try:
+        value = db.execute(text("SELECT value FROM app_settings WHERE key = 'as_of_date'")).scalar()
+    except DBAPIError:
+        db.rollback()  # a failed query aborts the transaction on Postgres
+        return None
+    return date.fromisoformat(value) if value else None
 
 
 def save_classification(

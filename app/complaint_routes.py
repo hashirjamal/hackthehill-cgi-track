@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.classification.schemas import ProcessRequest, ProcessResponse
-from app.classification.service import classify_complaint, save_classification
+from app.classification.service import classify_complaint, db_as_of_date, save_classification
 from app.config import settings
 from app.db import get_db
 from app.laya_service import get_laya
@@ -20,7 +20,7 @@ def process_complaints(payload: ProcessRequest, db: Session = Depends(get_db)):
 
     Today this runs the classification layer only. The domain AI agents will be called from here later.
     """
-    as_of = payload.as_of_date or settings.as_of_date or date.today()
+    as_of = payload.as_of_date or settings.as_of_date or db_as_of_date(db) or date.today()
     laya = get_laya()
     results = []
     try:

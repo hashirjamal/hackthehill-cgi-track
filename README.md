@@ -88,3 +88,22 @@ curl -X POST localhost:8000/complaints/process -H 'content-type: application/jso
 ```
 
 Tests (no model download needed): `pip install pytest && python -m pytest`.
+
+## Database setup (Tiger Data or any Postgres)
+
+`DATABASE_URL` needs the password in it (Tiger Data's connection string leaves it out). `postgres://` and
+`postgresql://` URLs are accepted and rewritten for SQLAlchemy.
+
+```bash
+URL='postgres://tsdbadmin:PASSWORD@HOST:PORT/tsdb?sslmode=require'
+psql "$URL" -f db/schema.sql
+psql "$URL" -f db/views.sql
+python3 db/build_seed.py && for f in db/seed/*.sql; do psql "$URL" -f "$f"; done
+```
+
+A database built from the first version of `db/schema.sql` (old `classifications` table, old agent ids) needs
+`db/migrations/001_classification_layer.sql`, then `db/views.sql` again. The migration refuses to run if the old table
+has rows.
+
+`days open` is measured to the first of: the request's `as_of_date`, `AS_OF_DATE` in `.env`, `app_settings.as_of_date`
+in the database, today.
