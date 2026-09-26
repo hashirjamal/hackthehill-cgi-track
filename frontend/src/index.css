@@ -1,0 +1,17 @@
+@import 'tailwindcss';
+
+/* The look of the app lives in these two colours and the text-purple-600 accent.
+   Page: a gray tint. Cards: a bit whitish. No borders anywhere, only rounded corners. */
+@theme {
+  --color-page: #eeeff4;
+  --color-card: #fbfbfd;
+}
+
+body {
+  @apply bg-page text-gray-700 antialiased;
+}
+
+/* Keep the layout from jumping when the scrollbar appears. */
+html {
+  scrollbar-gutter: stable;
+}
