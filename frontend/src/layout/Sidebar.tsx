@@ -15,10 +15,10 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
       >
         <div className="mb-6 flex items-center justify-between px-2 pt-1">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-600 text-sm font-bold text-white">N</div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand text-sm font-bold text-white">N</div>
             <div className="leading-tight">
-              <div className="text-sm font-semibold text-gray-800">Northwind</div>
-              <div className="text-xs text-gray-400">Complaint triage</div>
+              <div className="text-base font-semibold text-gray-900">Northwind</div>
+              <div className="text-xs text-gray-500">Complaint triage</div>
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Close menu" className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 md:hidden">
@@ -29,7 +29,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
         <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
           {navGroups.map((group) => (
             <div key={group.title}>
-              <div className="mb-1.5 px-3 text-xs font-medium tracking-wide text-gray-400 uppercase">{group.title}</div>
+              <div className="mb-1.5 px-3 text-xs font-semibold tracking-wide text-gray-500 uppercase">{group.title}</div>
               <ul className="flex flex-col gap-0.5">
                 {group.items.map(({ to, label, icon: Icon }) => (
                   <li key={to}>
@@ -39,7 +39,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
                       className={({ isActive }) =>
                         cn(
                           'flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors',
-                          isActive ? 'bg-purple-50 font-medium text-purple-600' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700',
+                          isActive ? 'bg-brand-soft font-medium text-brand' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
                         )
                       }
                     >
@@ -53,7 +53,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
           ))}
         </nav>
 
-        <p className="px-3 pt-4 text-xs text-gray-400">1,599 open complaints as of 30 Sep 2026</p>
+        <p className="px-3 pt-4 text-xs text-gray-500">1,599 open complaints as of 30 Sep 2026</p>
       </aside>
     </>
   )

@@ -11,7 +11,7 @@ import type { ClusterRow, RootCauseRow } from '../types'
 const rateBar = (rate: number) => (
   <span className="inline-flex items-center justify-end gap-2">
     <span className="h-1.5 w-20 rounded-full bg-gray-100">
-      <span className="block h-1.5 rounded-full bg-purple-500/80" style={{ width: `${rate * 100}%` }} />
+      <span className="block h-1.5 rounded-full bg-brand/75" style={{ width: `${rate * 100}%` }} />
     </span>
     {pct(rate)}
   </span>
@@ -36,7 +36,7 @@ const clusterColumns: Column<ClusterRow>[] = [
   {
     key: 'estimation_driven',
     header: 'Likely cause',
-    cell: (r) => (r.estimation_driven ? <Badge tone="purple">Estimated readings</Badge> : <span className="text-gray-300">-</span>),
+    cell: (r) => (r.estimation_driven ? <Badge tone="brand">Estimated readings</Badge> : <span className="text-gray-300">-</span>),
   },
 ]
 

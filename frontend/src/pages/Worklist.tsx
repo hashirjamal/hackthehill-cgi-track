@@ -14,23 +14,31 @@ const columns: Column<WorklistRow>[] = [
     header: 'Complaint',
     cell: (r) => (
       <div className="leading-tight">
-        <Link to={`/cases/${r.complaint_id}`} className="font-medium text-purple-600 hover:underline">
+        <Link to={`/cases/${r.complaint_id}`} className="font-medium text-brand hover:underline">
           {r.complaint_id}
         </Link>
         <div className="text-xs text-gray-400">{r.account_id}</div>
       </div>
     ),
   },
-  { key: 'category', header: 'Category' },
-  { key: 'region', header: 'Region' },
+  {
+    key: 'category',
+    header: 'Category',
+    cell: (r) => (
+      <div className="leading-snug">
+        <div>{r.category}</div>
+        <div className="text-xs text-gray-500">{r.region}</div>
+      </div>
+    ),
+  },
   {
     key: 'classified_priority',
     header: 'Priority',
     cell: (r) => (
-      <span className="inline-flex items-center gap-1.5">
+      <div className="leading-tight">
         <PriorityBadge priority={r.classified_priority} />
-        {r.classified_priority !== r.priority && <span className="text-xs text-gray-400">was {r.priority}</span>}
-      </span>
+        {r.classified_priority !== r.priority && <div className="mt-1 text-xs text-gray-500">was {r.priority}</div>}
+      </div>
     ),
   },
   {

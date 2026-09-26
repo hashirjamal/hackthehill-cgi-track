@@ -10,8 +10,8 @@ export function CardTitle({ title, hint, action }: { title: string; hint?: strin
   return (
     <div className="mb-4 flex items-center justify-between gap-3">
       <div>
-        <h2 className="text-sm font-semibold text-gray-800">{title}</h2>
-        {hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}
+        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        {hint && <p className="mt-0.5 text-sm text-gray-500">{hint}</p>}
       </div>
       {action}
     </div>

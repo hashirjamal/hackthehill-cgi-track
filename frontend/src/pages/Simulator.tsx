@@ -69,7 +69,7 @@ function Slider({
     <label className="flex flex-col gap-2">
       <span className="flex items-baseline justify-between text-sm">
         <span className="text-gray-700">{label}</span>
-        <span className="font-semibold text-purple-600 tabular-nums">{format(value)}</span>
+        <span className="font-semibold text-brand tabular-nums">{format(value)}</span>
       </span>
       <input
         type="range"
@@ -78,7 +78,7 @@ function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-purple-600"
+        className="w-full accent-brand"
       />
     </label>
   )
@@ -133,7 +133,7 @@ export default function Simulator() {
               </div>
               <div>
                 <dt className="text-xs text-gray-400">Most the system can cost a year</dt>
-                <dd className="mt-0.5 text-lg font-semibold text-purple-600 tabular-nums">{money(r.saving)}</dd>
+                <dd className="mt-0.5 text-lg font-semibold text-brand tabular-nums">{money(r.saving)}</dd>
               </div>
             </dl>
             <p className="mt-4 text-xs text-gray-400">

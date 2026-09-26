@@ -26,17 +26,17 @@ export default function Header({ onMenu }: { onMenu: () => void }) {
           value={id}
           onChange={(e) => setId(e.target.value)}
           placeholder="Open a complaint, e.g. NW-120404"
-          className="w-full rounded-xl bg-gray-100 py-2 pr-3 pl-9 text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-purple-300 focus:outline-none"
+          className="w-full rounded-xl bg-gray-100 py-2 pr-3 pl-9 text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-brand/30 focus:outline-none"
         />
       </form>
 
       <div className="ml-auto flex items-center gap-3">
-        <Badge tone="amber">Sample data</Badge>
+        <Badge tone="amber" dot={false}>Sample data</Badge>
         <span className="hidden items-center gap-1.5 text-xs text-gray-500 sm:flex">
-          <CalendarDays className="h-4 w-4 text-purple-600" />
+          <CalendarDays className="h-4 w-4 text-brand" />
           As of 30 Sep 2026
         </span>
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100 text-purple-600" aria-label="Account">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-soft text-brand" aria-label="Account">
           <User className="h-4 w-4" />
         </div>
       </div>

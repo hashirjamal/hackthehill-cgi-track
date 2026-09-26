@@ -21,7 +21,7 @@ const columns: Column<BreakdownRow>[] = [
     cell: (r) => (
       <span className="inline-flex items-center justify-end gap-2">
         <span className="h-1.5 w-16 rounded-full bg-gray-100">
-          <span className="block h-1.5 rounded-full bg-purple-500/80" style={{ width: `${r.share_of_backlog * 100 * 4}%` }} />
+          <span className="block h-1.5 rounded-full bg-brand/75" style={{ width: `${r.share_of_backlog * 100 * 4}%` }} />
         </span>
         {pct(r.share_of_backlog, 1)}
       </span>

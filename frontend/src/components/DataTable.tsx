@@ -72,7 +72,7 @@ export default function DataTable<T>({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-xs tracking-wide text-gray-400 uppercase">
+            <tr className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
               {columns.map((col) => {
                 const sortable = col.sortValue !== null
                 const active = sort?.key === col.key
@@ -84,8 +84,8 @@ export default function DataTable<T>({
                       onClick={() => toggleSort(col)}
                       className={cn(
                         'inline-flex items-center gap-1 uppercase focus:outline-none',
-                        sortable && 'hover:text-purple-600',
-                        active && 'text-purple-600',
+                        sortable && 'hover:text-brand',
+                        active && 'text-brand',
                       )}
                     >
                       {col.header}
@@ -103,7 +103,7 @@ export default function DataTable<T>({
                   <td
                     key={col.key}
                     className={cn(
-                      'px-3 py-3 whitespace-nowrap text-gray-700 first:rounded-l-xl last:rounded-r-xl group-hover:bg-purple-50',
+                      'px-3 py-3.5 whitespace-nowrap text-gray-800 first:rounded-l-xl last:rounded-r-xl group-hover:bg-brand-soft',
                       col.align === 'right' && 'text-right tabular-nums',
                     )}
                   >
@@ -137,7 +137,7 @@ export default function DataTable<T>({
                 setPageSize(Number(e.target.value))
                 setPage(1)
               }}
-              className="rounded-lg bg-gray-100 px-2 py-1 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-300"
+              className="rounded-lg bg-gray-100 px-2 py-1 text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand/30"
             >
               {PAGE_SIZES.map((s) => (
                 <option key={s} value={s}>
@@ -152,7 +152,7 @@ export default function DataTable<T>({
               aria-label="Previous page"
               disabled={current <= 1}
               onClick={() => setPage(current - 1)}
-              className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-purple-600 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-brand disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -164,7 +164,7 @@ export default function DataTable<T>({
               aria-label="Next page"
               disabled={current >= pages}
               onClick={() => setPage(current + 1)}
-              className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-purple-600 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-brand disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

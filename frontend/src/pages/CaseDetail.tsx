@@ -45,7 +45,7 @@ const historyColumns: Column<AccountHistoryRow>[] = [
     key: 'complaint_id',
     header: 'Complaint',
     cell: (r) => (
-      <Link to={`/cases/${r.complaint_id}`} className="font-medium text-purple-600 hover:underline">
+      <Link to={`/cases/${r.complaint_id}`} className="font-medium text-brand hover:underline">
         {r.complaint_id}
       </Link>
     ),
@@ -59,7 +59,7 @@ const historyColumns: Column<AccountHistoryRow>[] = [
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-xs text-gray-400">{label}</dt>
+      <dt className="text-xs font-medium text-gray-500">{label}</dt>
       <dd className="mt-0.5 text-sm text-gray-800">{children}</dd>
     </div>
   )
@@ -87,7 +87,7 @@ export default function CaseDetail() {
               <Fact label="Category">{sample.category}</Fact>
               <Fact label="Region">{sample.region}</Fact>
               <Fact label="Account">{sample.account_id}</Fact>
-              <Fact label="Status"><Badge tone="purple">{sample.status}</Badge></Fact>
+              <Fact label="Status"><Badge tone="brand">{sample.status}</Badge></Fact>
               <Fact label="Channel">{sample.channel}</Fact>
               <Fact label="Source system">{sample.source_system}</Fact>
               <Fact label="Opened">{sample.opened}</Fact>
@@ -99,14 +99,12 @@ export default function CaseDetail() {
           <Card>
             <CardTitle title="Classification" hint="What the classifier decided, and why" />
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-              <Fact label="Group">Billing <span className="text-xs text-gray-400">from Laya, 95% sure</span></Fact>
+              <Fact label="Group">Billing <span className="text-xs text-gray-500">from Laya, 95% sure</span></Fact>
               <Fact label="Subcategory">Billing - estimated read</Fact>
               <Fact label="Routed to">Metering team</Fact>
               <Fact label="Priority">
-                <span className="inline-flex items-center gap-1.5">
-                  <PriorityBadge priority={sample.classified_priority} />
-                  <span className="text-xs text-gray-400">was {sample.priority}, raised by deadline risk</span>
-                </span>
+                <PriorityBadge priority={sample.classified_priority} />
+                <div className="mt-1 text-xs font-normal text-gray-500">was {sample.priority}, raised by deadline risk</div>
               </Fact>
               <Fact label="Lane"><LaneBadge lane="standard" /></Fact>
               <Fact label="Likely cause">Estimated reading</Fact>
@@ -123,7 +121,7 @@ export default function CaseDetail() {
           <Card>
             <CardTitle title="Draft reply and actions" hint="From the AI agent for this group" />
             <div className="flex flex-col items-center gap-2 rounded-xl bg-gray-100 px-4 py-8 text-center">
-              <Bot className="h-6 w-6 text-purple-600" />
+              <Bot className="h-6 w-6 text-brand" />
               <p className="text-sm text-gray-600">No draft yet</p>
               <p className="text-xs text-gray-400">The AI agents are not connected yet. Drafts and action items will show here for staff to approve.</p>
             </div>

@@ -14,7 +14,7 @@ const columns: Column<AccountHistoryRow>[] = [
     key: 'complaint_id',
     header: 'Complaint',
     cell: (r) => (
-      <Link to={`/cases/${r.complaint_id}`} className="font-medium text-purple-600 hover:underline">
+      <Link to={`/cases/${r.complaint_id}`} className="font-medium text-brand hover:underline">
         {r.complaint_id}
       </Link>
     ),

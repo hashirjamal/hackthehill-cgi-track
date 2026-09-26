@@ -12,7 +12,7 @@ const columns: Column<CaseRow>[] = [
     key: 'complaint_id',
     header: 'Complaint',
     cell: (r) => (
-      <Link to={`/cases/${r.complaint_id}`} className="font-medium text-purple-600 hover:underline">
+      <Link to={`/cases/${r.complaint_id}`} className="font-medium text-brand hover:underline">
         {r.complaint_id}
       </Link>
     ),
@@ -21,10 +21,18 @@ const columns: Column<CaseRow>[] = [
   {
     key: 'status',
     header: 'Status',
-    cell: (r) => <Badge tone={r.status === 'Open' ? 'purple' : r.status === 'Closed' ? 'gray' : 'amber'}>{r.status}</Badge>,
+    cell: (r) => <Badge tone={r.status === 'Open' ? 'brand' : r.status === 'Closed' ? 'gray' : 'amber'}>{r.status}</Badge>,
   },
-  { key: 'category', header: 'Category' },
-  { key: 'region', header: 'Region' },
+  {
+    key: 'category',
+    header: 'Category',
+    cell: (r) => (
+      <div className="leading-snug">
+        <div>{r.category}</div>
+        <div className="text-xs text-gray-500">{r.region}</div>
+      </div>
+    ),
+  },
   { key: 'priority', header: 'Priority', cell: (r) => <PriorityBadge priority={r.priority} /> },
   { key: 'days_open', header: 'Days', align: 'right' },
   {

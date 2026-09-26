@@ -26,8 +26,12 @@ npm run lint
 
 ## Design
 
-- Primary colour is `text-purple-600`. Page background is a gray tint and cards are a bit whitish, both set as
-  `--color-page` and `--color-card` in `src/index.css`, so the look changes in one place.
+- Brand colour is a deep purple (`--color-brand`, purple-800), used for titles, links, buttons, stat numbers and
+  charts. Page background is a gray tint and cards are a bit whitish (`--color-page`, `--color-card`). All three,
+  plus the type scale and the font (Inter, self-hosted through `@fontsource-variable/inter`), are set at the top of
+  `src/index.css`, so the look changes in one place. Use `text-brand`, `bg-brand` and so on, not raw purple classes.
+- Text is a step bigger than Tailwind's defaults (`text-sm` is 15px). Stat numbers are `text-4xl`.
+- Badges are soft tinted chips with a small dot (`components/Badge.tsx`), in brand, gray, red, amber and green.
 - No borders anywhere, only rounded corners.
 
 ## Layout of the code
