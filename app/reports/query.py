@@ -64,10 +64,14 @@ class Where:
             assert op in ("=", ">=", "<=", ">", "<")
             self._clauses.append(f"{column} {op} {self._bind(value)}")
 
-    def flag(self, column: str, value: bool | None):
-        """A boolean column that may be NULL: true means IS TRUE, false means anything else."""
+    def flag(self, column: str, value: bool | None, strict: bool = False):
+        """Filter on a boolean column. Set strict for a column that is NULL when unknown (for example
+        resolvable_by_information_only on open cases): then false means "known to be false", not "not true"."""
         if value is not None:
-            self._clauses.append(f"{column} IS {'TRUE' if value else 'NOT TRUE'}")
+            if strict:
+                self._clauses.append(f"{column} IS {'TRUE' if value else 'FALSE'}")
+            else:
+                self._clauses.append(f"{column} IS {'TRUE' if value else 'NOT TRUE'}")
 
     def is_set(self, column: str, value: bool | None):
         """true keeps rows where the column has a value, false keeps rows where it is NULL."""

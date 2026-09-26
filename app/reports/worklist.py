@@ -84,7 +84,7 @@ def worklist(
     likely_cause: list[str] | None = Query(None, description="e.g. estimated_reading"),
     breached: bool | None = Query(None, description="Past its SLA target as of the as_of_date"),
     classified: bool | None = Query(None, description="Has a current classification"),
-    low_confidence: bool | None = Query(None),
+    low_confidence: bool | None = Query(None, description="Classifier was unsure. Unclassified cases match neither true nor false"),
     days_overdue_min: int | None = Query(None, description="Use 0 for cases already past target"),
     days_overdue_max: int | None = None,
     days_open_min: int | None = None,
@@ -103,7 +103,7 @@ def worklist(
         where.any_of(column, values)
     where.flag("breached_live", breached)
     where.is_set("classification_id", classified)
-    where.flag("low_confidence", low_confidence)
+    where.flag("low_confidence", low_confidence, strict=True)
     where.compare("days_overdue", ">=", days_overdue_min)
     where.compare("days_overdue", "<=", days_overdue_max)
     where.compare("days_open", ">=", days_open_min)
