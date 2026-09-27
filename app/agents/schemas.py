@@ -24,7 +24,8 @@ class ContextResponse(BaseModel):
     run_id: int
     status: str  # "succeeded" or "failed"
     action_items: list[ActionItemOut]
-    error: str | None = None
+    error: str | None = None  # a note, e.g. why the no-AI rules were used instead of the AI
+    mode: str = "ai"  # "ai" (local LLM) or "rules" (no AI)
     systems_checked: list[SystemCall] = []
 
 
@@ -33,5 +34,6 @@ class DraftOut(BaseModel):
     status: str  # "succeeded" or "failed"
     draft_id: int | None = None
     body: str | None = None
-    error: str | None = None
+    error: str | None = None  # a note, e.g. why the no-AI rules were used instead of the AI
+    mode: str = "ai"  # "ai" (local LLM) or "rules" (no AI)
     systems_checked: list[SystemCall] = []

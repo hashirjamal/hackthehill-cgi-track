@@ -143,6 +143,7 @@ class CaseContext(BaseModel):
     action_items: list[dict[str, Any]]
     # Northwind systems the agent checked, for the latest "Get context" and "Generate draft" runs, by run_id.
     systems_checked: dict[int, list[dict[str, Any]]] = {}
+    run_modes: dict[int, str] = {}  # "ai" or "rules" (no AI), by run_id
 
 
 def _rows(db: Session, sql: str, **params) -> list[dict[str, Any]]:
@@ -233,8 +234,10 @@ def case_context(
     run_ids = {r["run_id"] for r in (actions[:1] + drafts[:1]) if r.get("run_id") is not None}
     runs = _rows(db, "SELECT run_id, context FROM agent_runs WHERE run_id = ANY(:ids)", ids=list(run_ids)) if run_ids else []
     systems_checked = {r["run_id"]: (r["context"] or {}).get("systems_checked", []) for r in runs}
+    run_modes = {r["run_id"]: (r["context"] or {}).get("mode", "ai") for r in runs}
     return {
         "systems_checked": systems_checked,
+        "run_modes": run_modes,
         "case": case,
         "classification": classification[0] if classification else None,
         "region_meter": region_meter,

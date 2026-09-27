@@ -76,6 +76,9 @@ def _client(monkeypatch):
     monkeypatch.setitem(app.dependency_overrides, get_db, override_get_db)
     monkeypatch.setattr("app.complaint_routes.get_laya", lambda: FakeLaya())
     monkeypatch.setattr("app.complaint_routes.settings.agent_enabled", False)
+    # Point the Northwind systems at a closed port, so tests never reach servers running locally.
+    for name in ("helix_url", "aurora_url", "casetrack_url", "callcentre_url", "connect_url"):
+        monkeypatch.setattr(f"app.config.settings.{name}", "http://127.0.0.1:9")
     return TestClient(app), TestSession
 
 
@@ -122,26 +125,42 @@ def test_generate_draft_with_an_unknown_complaint_returns_404(monkeypatch):
     assert client.post("/complaints/NW-999/draft").status_code == 404
 
 
-def test_get_context_records_a_failed_run_when_agent_is_disabled(monkeypatch):
+def test_get_context_with_ai_disabled_uses_the_no_ai_rules(monkeypatch):
     client, TestSession = _client(monkeypatch)  # agent_enabled=False, set in _client
     db = TestSession()
-    db.add(_complaint())
-    db.add(_current_classification("NW-1", "Billing"))
+    db.add(_complaint(category="Service - missed appointment"))
+    db.add(_current_classification("NW-1", "Field services"))
     db.commit()
     db.close()
 
-    response = client.post("/complaints/NW-1/context")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "failed"
+    body = client.post("/complaints/NW-1/context").json()
+    assert (body["status"], body["mode"]) == ("succeeded", "rules")
     assert "turned off" in body["error"]
-    assert body["action_items"] == []
+    assert body["action_items"][0]["action_type"] == "rebook_and_compensate"
+    # The systems are unreachable in tests: that is traced, and the rules carry on regardless.
+    assert body["systems_checked"][0]["summary"] == "Helix CIS did not respond."
 
     db = TestSession()
     run = db.query(AgentRun).filter_by(complaint_id="NW-1").one()
-    assert run.status == "failed"
-    assert run.finished_at is not None
+    assert (run.status, run.model, run.context["mode"]) == ("succeeded", "rules (no AI)", "rules")
     db.close()
+
+
+def test_rules_mode_never_calls_the_model_even_when_ai_is_on(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    db = TestSession()
+    db.add(_complaint())
+    db.commit()
+    db.close()
+
+    def no_model():
+        raise AssertionError("rules mode must not build a model")
+
+    monkeypatch.setattr("app.complaint_routes._build_agent_model", no_model)
+    body = client.post("/complaints/NW-1/draft?mode=rules").json()
+    assert (body["status"], body["mode"], body["error"]) == ("succeeded", "rules", None)
+    assert body["body"].startswith("Dear Customer,")  # Helix unreachable, so no name
+    assert "[Your name], Northwind Energy & Water" in body["body"]
 
 
 def test_get_context_runs_the_scripted_model_and_returns_the_action_items(monkeypatch):
@@ -232,28 +251,26 @@ def test_get_context_for_an_unclassified_complaint_still_works(monkeypatch):
     db.close()
 
 
-def test_get_context_reports_failed_when_the_model_never_calls_create_action_brief(monkeypatch):
+def test_get_context_falls_back_to_rules_when_the_model_never_calls_create_action_brief(monkeypatch):
     # Finishing without an exception is not the same as doing what was asked - a model that just
-    # answers in plain text instead of calling the tool must not be reported as a success.
+    # answers in plain text gets replaced by the no-AI rules, and the note says so.
     client, TestSession = _client(monkeypatch)
     db = TestSession()
-    db.add(_complaint())
-    db.add(_current_classification("NW-1", "Billing"))
+    db.add(_complaint(category="Service - poor communication"))
+    db.add(_current_classification("NW-1", "Customer support"))
     db.commit()
     db.close()
 
     fake = ScriptedChatModel(responses=[AIMessage(content="I looked into it but have no recommendation.")])
     monkeypatch.setattr("app.complaint_routes._build_agent_model", lambda: fake)
 
-    response = client.post("/complaints/NW-1/context")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "failed"
+    body = client.post("/complaints/NW-1/context").json()
+    assert (body["status"], body["mode"]) == ("succeeded", "rules")
     assert "did not record any action items" in body["error"]
-    assert body["action_items"] == []
+    assert [a["action_type"] for a in body["action_items"]] == ["named_handler"]
 
 
-def test_generate_draft_reports_failed_when_the_model_never_calls_save_draft_reply(monkeypatch):
+def test_generate_draft_falls_back_to_rules_when_the_model_never_calls_save_draft_reply(monkeypatch):
     client, TestSession = _client(monkeypatch)
     db = TestSession()
     db.add(_complaint())
@@ -264,12 +281,11 @@ def test_generate_draft_reports_failed_when_the_model_never_calls_save_draft_rep
     fake = ScriptedChatModel(responses=[AIMessage(content="I'm not sure what to say here.")])
     monkeypatch.setattr("app.complaint_routes._build_agent_model", lambda: fake)
 
-    response = client.post("/complaints/NW-1/draft")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "failed"
+    body = client.post("/complaints/NW-1/draft").json()
+    assert (body["status"], body["mode"]) == ("succeeded", "rules")
     assert "did not save a draft" in body["error"]
-    assert body["body"] is None
+    assert body["body"].startswith("Dear Customer,")
+
 
 
 def _intake(**overrides) -> dict:

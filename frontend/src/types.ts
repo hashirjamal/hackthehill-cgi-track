@@ -251,6 +251,8 @@ export interface CaseContext {
   action_items: CaseActionItem[]
   /** Northwind systems the agent checked, for the latest Get context and Generate draft runs, by run_id. */
   systems_checked: Record<string, SystemCall[]>
+  /** Whether each of those runs used the local AI or the no-AI rules. */
+  run_modes: Record<string, 'ai' | 'rules'>
 }
 
 /** One request the agent made to a Northwind system. */
@@ -276,7 +278,9 @@ export interface CaseActionItem {
 export interface AgentRunResult {
   run_id: number
   status: 'succeeded' | 'failed'
+  /** A note, e.g. why the no-AI rules were used instead of the AI. */
   error: string | null
+  mode: 'ai' | 'rules'
   systems_checked: SystemCall[]
 }
 export interface ContextResult extends AgentRunResult {

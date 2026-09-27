@@ -1,14 +1,15 @@
 import threading
 import uuid
 from datetime import date, datetime, timezone
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_ollama import ChatOllama
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.agents.config import AGENT_CONFIGS, GROUP_TO_AGENT_ID, AgentConfig
+from app.agents.config import AGENT_CONFIGS, GROUP_TO_AGENT_ID
 from app.agents.runner import (
     AgentBackendError,
     GENERATE_DRAFT_INSTRUCTION,
@@ -16,7 +17,8 @@ from app.agents.runner import (
     run_agent_once,
 )
 from app.agents.schemas import ActionItemOut, ContextResponse, DraftOut
-from app.agents.systems import SystemsClient, build_system_tools
+from app.agents import rules_engine
+from app.agents.systems import NorthwindLookups, SystemsClient, build_system_tools
 from app.agents.tools import build_action_item_tool, build_context_tools_for, build_draft_tool
 from app.classification.schemas import ComplaintIn, IntakeRequest, IntakeResponse, ProcessRequest, ProcessResponse
 from app.classification.service import classify_complaint, db_as_of_date, save_classification
@@ -127,68 +129,94 @@ def _resolve_complaint_and_agent(db: Session, complaint_id: str) -> tuple[Compla
     return complaint, agent_id, customer_text
 
 
-def _start_run(db: Session, complaint_id: str, agent_id: str | None, model: BaseChatModel | None) -> AgentRun:
-    # ai_agents.agent_id has no "unclassified" row - general is the sensible default for a case
-    # with no current classification yet (it already handles low-confidence cases, per taxonomy).
-    run = AgentRun(
-        complaint_id=complaint_id,
-        agent_id=agent_id or "general",
-        status="running",
-        model=settings.agent_model if model is not None else "disabled",
-    )
-    db.add(run)
-    db.flush()
-    return run
+RULES_MODEL = "rules (no AI)"  # agent_runs.model for runs built by app/agents/rules_engine.py
 
 
-def _run_and_finish(
-    run: AgentRun, model: BaseChatModel | None, cfg: AgentConfig | None, tools: list, instruction: str
-) -> None:
-    if model is None:
-        run.status, run.error = "failed", "AI assistance is turned off (AGENT_ENABLED=false)."
-    else:
-        try:
-            run_agent_once(model, cfg, tools, instruction)
-            run.status = "succeeded"
-        except AgentBackendError as e:
-            run.status, run.error = "failed", str(e)
-    run.finished_at = datetime.now(timezone.utc)
-
-
-@router.post("/{complaint_id}/context", response_model=ContextResponse)
-def get_context(complaint_id: str, db: Session = Depends(get_db)):
-    """"Get context" button on a case: runs the domain agent's read-only tools and asks it to
-    record action items for staff - never a draft. Nothing runs until this is called."""
-    complaint, agent_id, customer_text = _resolve_complaint_and_agent(db, complaint_id)
-    cfg = AGENT_CONFIGS.get(agent_id) if agent_id else None
-    as_of = settings.as_of_date or db_as_of_date(db) or date.today()
-
-    model = _build_agent_model()
-    run = _start_run(db, complaint_id, agent_id, model)
+def _ai_run(db, complaint, agent_id, customer_text, as_of, run, model, trace, kind) -> str | None:
+    """Run the local LLM. Returns None on success, or why it didn't produce anything."""
     # One lock per call, shared by every tool bound to it - LangGraph's ToolNode dispatches every
     # tool call (even a single one) through a thread pool, and one SQLAlchemy Session is not
     # safe for concurrent use across threads (confirmed live: reproduced "Session is already
     # flushing" without this).
     lock = threading.Lock()
-    trace: list[dict] = []  # every Northwind system call the agent makes, for "Systems checked"
     system_tools = build_system_tools(complaint, SystemsClient(trace))
-    tools = [
-        *build_context_tools_for(agent_id, db, complaint, as_of, lock, customer_text, system_tools),
-        build_action_item_tool(db, complaint, run.run_id, lock),
-    ]
-    _run_and_finish(run, model, cfg, tools, GET_CONTEXT_INSTRUCTION)
-    run.context = {"systems_checked": trace}
+    output_tool = (build_action_item_tool if kind == "context" else build_draft_tool)(db, complaint, run.run_id, lock)
+    tools = [*build_context_tools_for(agent_id, db, complaint, as_of, lock, customer_text, system_tools), output_tool]
+    cfg = AGENT_CONFIGS.get(agent_id) if agent_id else None
+    try:
+        run_agent_once(model, cfg, tools, GET_CONTEXT_INSTRUCTION if kind == "context" else GENERATE_DRAFT_INSTRUCTION)
+    except AgentBackendError as e:
+        return str(e)
+    # The model can finish the loop without ever calling its output tool - e.g. it just answers in
+    # plain text instead. "No exception" is not the same as "did what was asked".
+    output = ActionItem if kind == "context" else DraftResponse
+    if not db.query(output).filter_by(run_id=run.run_id).count():
+        return "The AI did not record any action items." if kind == "context" else "The AI did not save a draft."
+    return None
 
-    items = db.query(ActionItem).filter_by(run_id=run.run_id).order_by(ActionItem.rank).all()
-    if run.status == "succeeded" and not items:
-        # The model can finish the loop without ever calling create_action_brief - e.g. it just
-        # answers in plain text instead. "No exception" is not the same as "did what was asked".
-        run.status, run.error = "failed", "The agent did not record any action items."
+
+def _run_button(db: Session, complaint_id: str, kind: str, mode: str | None) -> AgentRun:
+    """One click of "Get context" (kind="context") or "Generate draft" (kind="draft").
+
+    mode "ai" runs the local LLM; mode "rules" runs app/agents/rules_engine.py - the same systems and
+    database, no AI at all. With AI off (AGENT_ENABLED=false) or when an AI run produces nothing,
+    the rules run instead, so staff always get a result. run.context records which mode was used."""
+    complaint, agent_id, customer_text = _resolve_complaint_and_agent(db, complaint_id)
+    as_of = settings.as_of_date or db_as_of_date(db) or date.today()
+    model = _build_agent_model() if mode != "rules" else None
+    run = AgentRun(
+        complaint_id=complaint_id,
+        # ai_agents.agent_id has no "unclassified" row - general is the sensible default for a case
+        # with no current classification yet.
+        agent_id=agent_id or "general",
+        status="running",
+        model=settings.agent_model if model is not None else RULES_MODEL,
+    )
+    db.add(run)
+    db.flush()
+
+    trace: list[dict] = []  # every Northwind system call, for "Systems checked"
+    note = None
+    if model is not None:
+        failure = _ai_run(db, complaint, agent_id, customer_text, as_of, run, model, trace, kind)
+        if failure is None:
+            used = "ai"
+        else:
+            used, note = "rules", f"The AI didn't finish ({failure}), so the no-AI rules were used instead."
+            for output in (ActionItem, DraftResponse):  # drop anything half-written by the failed AI run
+                db.query(output).filter_by(run_id=run.run_id).delete()
+            trace.clear()
+            run.model = RULES_MODEL
+    else:
+        used = "rules"
+        if mode != "rules":
+            note = "AI assistance is turned off, so the no-AI rules were used."
+
+    if used == "rules":
+        look = NorthwindLookups(complaint, SystemsClient(trace))
+        (rules_engine.run_context if kind == "context" else rules_engine.run_draft)(db, complaint, look, run.run_id)
+    run.status, run.error = "succeeded", note
+    run.finished_at = datetime.now(timezone.utc)
+    run.context = {"systems_checked": trace, "mode": used}
     db.commit()
+    return run
+
+
+@router.post("/{complaint_id}/context", response_model=ContextResponse)
+def get_context(
+    complaint_id: str,
+    mode: Literal["ai", "rules"] | None = Query(None, description="ai (local LLM) or rules (no AI). Default: ai when enabled"),
+    db: Session = Depends(get_db),
+):
+    """"Get context" button on a case: checks Northwind's systems and records action items for
+    staff - never a draft. Nothing runs until this is called."""
+    run = _run_button(db, complaint_id, "context", mode)
+    items = db.query(ActionItem).filter_by(run_id=run.run_id).order_by(ActionItem.rank).all()
     return ContextResponse(
         run_id=run.run_id,
         status=run.status,
         error=run.error,
+        mode=run.context["mode"],
         action_items=[
             ActionItemOut(
                 action_id=i.action_id, action_type=i.action_type, description=i.description,
@@ -196,42 +224,26 @@ def get_context(complaint_id: str, db: Session = Depends(get_db)):
             )
             for i in items
         ],
-        systems_checked=trace,
+        systems_checked=run.context["systems_checked"],
     )
 
 
 @router.post("/{complaint_id}/draft", response_model=DraftOut)
-def generate_draft(complaint_id: str, db: Session = Depends(get_db)):
-    """"Generate draft" button on a case: runs the domain agent's read-only tools and asks it to
-    save one drafted reply, for staff to copy, edit, approve and send themselves. Nothing is sent
-    automatically."""
-    complaint, agent_id, customer_text = _resolve_complaint_and_agent(db, complaint_id)
-    cfg = AGENT_CONFIGS.get(agent_id) if agent_id else None
-    as_of = settings.as_of_date or db_as_of_date(db) or date.today()
-
-    model = _build_agent_model()
-    run = _start_run(db, complaint_id, agent_id, model)
-    lock = threading.Lock()  # see get_context() above for why this is needed
-    trace: list[dict] = []  # every Northwind system call the agent makes, for "Systems checked"
-    system_tools = build_system_tools(complaint, SystemsClient(trace))
-    tools = [
-        *build_context_tools_for(agent_id, db, complaint, as_of, lock, customer_text, system_tools),
-        build_draft_tool(db, complaint, run.run_id, lock),
-    ]
-    _run_and_finish(run, model, cfg, tools, GENERATE_DRAFT_INSTRUCTION)
-    run.context = {"systems_checked": trace}
-
+def generate_draft(
+    complaint_id: str,
+    mode: Literal["ai", "rules"] | None = Query(None, description="ai (local LLM) or rules (no AI). Default: ai when enabled"),
+    db: Session = Depends(get_db),
+):
+    """"Generate draft" button on a case: checks Northwind's systems and saves one drafted reply,
+    for staff to copy, edit, approve and send themselves. Nothing is sent automatically."""
+    run = _run_button(db, complaint_id, "draft", mode)
     draft = db.query(DraftResponse).filter_by(run_id=run.run_id).order_by(DraftResponse.draft_id.desc()).first()
-    if run.status == "succeeded" and draft is None:
-        # Same reasoning as get_context() above: the model can finish without ever calling
-        # save_draft_reply, and that must not be reported as success.
-        run.status, run.error = "failed", "The agent did not save a draft."
-    db.commit()
     return DraftOut(
         run_id=run.run_id,
         status=run.status,
         error=run.error,
+        mode=run.context["mode"],
         draft_id=draft.draft_id if draft else None,
         body=draft.body if draft else None,
-        systems_checked=trace,
+        systems_checked=run.context["systems_checked"],
     )

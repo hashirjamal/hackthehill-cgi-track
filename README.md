@@ -142,6 +142,15 @@ it never needs a running Ollama server.
 default today. That's the file to edit together to write the actual system-prompt wording; a new
 domain-specific tool is a new entry in `app/agents/tools.py`'s `build_context_tools_for`.
 
+### AI on or off: the same use case without any AI
+
+The case page has an **AI on / AI off** switch (`?mode=ai|rules` on `/context` and `/draft`). With AI
+off, `app/agents/rules_engine.py` checks the same Northwind systems (that part never used AI), reads
+our database with SQL, and builds the action items and the reply from fixed rules and templates -
+every item still names its source system, and the "Systems checked" trace is the same. It takes about
+a second. It also runs automatically when AI is disabled (`AGENT_ENABLED=false`) or when an AI run
+fails to produce anything, so staff always get a result; the note on the card says why.
+
 ## Simulated Northwind systems (what the agent's tools call)
 
 Northwind's real systems aren't available to us, so `northwind_systems/` runs believable stand-ins:
