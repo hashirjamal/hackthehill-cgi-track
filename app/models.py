@@ -447,7 +447,8 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
     __table_args__ = (CheckConstraint("role IN ('staff', 'assistant')", name="chat_messages_role_check"),)
 
-    message_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # Integer on SQLite (local dev), so the key autoincrements there - see Classification.id.
+    message_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.session_id"))
     role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text)

@@ -29,12 +29,12 @@ class Settings(BaseSettings):
     # app_settings.as_of_date in the database, then to today.
     as_of_date: date | None = None
 
-    # Domain AI agents (see app/agents/). agent_model is a placeholder tag until the team confirms
-    # which local Ollama model they're running (`ollama pull <model>` first).
-    agent_enabled: bool = True  # False uses the template fallback everywhere (requirement N6)
-    agent_model: str = "gemma3"
+    # Domain AI agents (see app/agents/). gemma3 has no tool-calling support in Ollama at all;
+    # gemma4 does (native, ~86% tool-calling accuracy per Google). Run `ollama pull gemma4` first.
+    agent_enabled: bool = True  # False turns off AI chat everywhere (requirement N6)
+    agent_model: str = "gemma4"
     ollama_host: str = "http://localhost:11434"
-    agent_timeout_seconds: float = 30.0  # per Ollama call; a timeout marks that run failed, the batch goes on
+    agent_timeout_seconds: float = 30.0  # per Ollama call
 
 
 settings = Settings()

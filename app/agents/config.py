@@ -1,5 +1,5 @@
-"""One AgentConfig per domain. Agents share all code (context.py, backends.py, service.py) and
-differ only here: instructions, and later, historic patterns or reply templates if the team adds them.
+"""One AgentConfig per domain. Agents share all code (tools.py, chat.py) and differ only here:
+instructions, and which tool set (app/agents/tools.py's TOOL_BUILDERS) is bound to the chat.
 
 `instructions` below is a real, working default built from the classifier's own group descriptions
 (app/classification/taxonomy.py) - generic on purpose. This is the file the team edits together to
@@ -28,12 +28,12 @@ class AgentConfig:
 
 def _default_instructions(domain: str) -> str:
     return (
-        f"You are the {domain} domain agent for Northwind Energy & Water, an electricity and water "
-        f"utility. You handle cases about {GROUPS[domain]['description']}. Given the complaint and its "
-        "context - the account's earlier complaints, the region's meter picture, and how similar cases "
-        "were usually resolved - decide whether the customer needs a written reply and, if so, draft one "
-        "in a professional, empathetic tone; if no reply is needed, leave the reply empty. Then list the "
-        "concrete next actions staff should take, in order, each with a short reason."
+        f"You are an assistant for the {domain} team at Northwind Energy & Water, an electricity and "
+        f"water utility, helping staff handle a case about {GROUPS[domain]['description']}. You never "
+        "take any action yourself - you only look things up and explain, to make it easier for the "
+        "member of staff you are talking to decide what to do. Use your tools when staff ask you to "
+        "look something up or analyze the case, and only draft a reply to the customer when staff "
+        "explicitly ask for one. Answer plainly and concisely."
     )
 
 

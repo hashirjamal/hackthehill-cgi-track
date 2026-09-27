@@ -93,24 +93,39 @@ curl -X POST localhost:8000/complaints/process -H 'content-type: application/jso
 
 Tests (no model download needed): `pip install pytest && python -m pytest`.
 
-## Domain AI agents
+## Domain AI agents (staff chat)
 
-After classification, `POST /complaints/process` runs the matching domain agent (billing, metering,
-field services, customer support, general) to produce a draft reply (where one applies) and ranked
-action items, stored in `draft_responses` / `action_items`. Every run is logged to `agent_runs`,
-including failures - a failed agent run never blocks the batch; the complaint keeps its classification
-with no draft.
+The domain agent never runs on its own. Classification (above) happens for every complaint; the
+agent only runs when a staff member opens a specific complaint and sends it a message:
 
-By default it calls a local [Ollama](https://ollama.com) model with structured output (`OLLAMA_HOST`,
-default `http://localhost:11434`; `AGENT_MODEL`, default `gemma3` - pull whatever model you actually
-run with `ollama pull <model>` and set `AGENT_MODEL` to match; `AGENT_TIMEOUT_SECONDS`, default `30.0`,
-per call - a call that takes longer is recorded as a failed run). Set `AGENT_ENABLED=false` to use the
-template fallback instead (no LLM call at all - requirement N6's confidentiality fallback), which is
-also what the test suite uses so it never needs a running Ollama server.
+```bash
+curl -X POST localhost:8000/complaints/NW-124233/chat -H 'content-type: application/json' -d '{
+  "message": "Pull this account'\''s other complaints and tell me if this looks like a repeat issue."
+}'
+```
+
+It never acts on a real account - it only looks things up (via [LangChain](https://python.langchain.com)
+tools bound to that one complaint) to help staff decide what to do, and only drafts a reply to the
+customer when staff explicitly ask for one (saved to `draft_responses` for review, never sent
+automatically). Every message, in both directions, is logged to `chat_sessions` / `chat_messages` for
+audit. A conversation is per visit - reopening the same complaint later starts a new session, not a
+continuation.
+
+Billing is the only domain with tools implemented so far (`app/agents/tools.py`): pulling the
+account's other complaints, the historic pattern for this category/region/system, and the region's
+meter picture. Other domains get a plain chat with no lookups until their tools are built the same way.
+
+By default it calls a local [Ollama](https://ollama.com) model (`OLLAMA_HOST`, default
+`http://localhost:11434`; `AGENT_MODEL`, default `gemma4` - **gemma3 has no tool-calling support in
+Ollama at all**, gemma4 does; pull whatever you actually run with `ollama pull <model>` and set
+`AGENT_MODEL` to match; `AGENT_TIMEOUT_SECONDS`, default `30.0`, per call). Set `AGENT_ENABLED=false`
+to turn the chat off entirely (requirement N6's confidentiality fallback) - callers get a fixed
+message instead of an LLM call, which is also what the test suite uses so it never needs a running
+Ollama server.
 
 `app/agents/config.py`'s `AGENT_CONFIGS` holds each domain's instructions - a real but generic default
-today. That's the file to edit together to write the actual system-prompt wording; nothing else in
-`app/agents/` needs to change for that.
+today. That's the file to edit together to write the actual system-prompt wording; adding a domain's
+tool set is a new entry in `app/agents/tools.py`'s `TOOL_BUILDERS`.
 
 ## Database setup (Tiger Data or any Postgres)
 

@@ -275,3 +275,7 @@ INSERT INTO categories (category, agent_id) VALUES
     ('Other',                        'general');
 
 INSERT INTO app_settings (key, value) VALUES ('as_of_date', '2026-09-30');
+
+-- Placeholder until real staff accounts/auth exist. The chat endpoint defaults new sessions to
+-- this row (staff_id 1) so there is something for chat_sessions.staff_id to reference.
+INSERT INTO staff (name, role, team) VALUES ('Demo Staff', 'contact_centre', 'billing');
