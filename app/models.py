@@ -342,7 +342,8 @@ class AgentRun(Base):
         Index("agent_runs_complaint_id_idx", "complaint_id"),
     )
 
-    run_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # Integer on SQLite (local dev), so the key autoincrements there (see Classification.id).
+    run_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     complaint_id: Mapped[str] = mapped_column(ForeignKey("complaints.complaint_id"))
     agent_id: Mapped[str] = mapped_column(ForeignKey("ai_agents.agent_id"))
     classification_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("classifications.id"))
@@ -371,7 +372,8 @@ class DraftResponse(Base):
         Index("draft_responses_complaint_id_idx", "complaint_id"),
     )
 
-    draft_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # Integer on SQLite (local dev), so the key autoincrements there (see Classification.id).
+    draft_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     complaint_id: Mapped[str] = mapped_column(ForeignKey("complaints.complaint_id"))
     run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("agent_runs.run_id"))
     body: Mapped[str] = mapped_column(Text)  # as generated
@@ -398,7 +400,8 @@ class ActionItem(Base):
         Index("action_items_status_idx", "status"),
     )
 
-    action_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # Integer on SQLite (local dev), so the key autoincrements there (see Classification.id).
+    action_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
     complaint_id: Mapped[str] = mapped_column(ForeignKey("complaints.complaint_id"))
     run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("agent_runs.run_id"))
     action_type: Mapped[str] = mapped_column(Text)  # correct_bill, book_meter_read, escalate_field ...
