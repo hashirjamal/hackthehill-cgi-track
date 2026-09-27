@@ -69,8 +69,11 @@ and flag rules, `service.py` the pipeline). Thresholds are in `app/config.py` an
 **Laya runs every step on every complaint.** Per the current plan (see `docs/OPTIMIZATION_PLAN.md`), Laya reads the
 intake template's answers - filled in by one of the 4 intake teams, whose only job is that template - plus the text
 if there is any, and decides the urgency on its own: Northwind's historic priority is not used as the starting
-point, because their way of deciding if something was urgent was not that good. Flags then raise the level, never
-lower it.
+point, because their way of deciding if something was urgent was not that good. Laya's urgency alone goes up to P2;
+**P1 needs a stated reason** - an emergency, a vulnerable customer or a health or safety risk (text flags) - so every
+P1 on the worklist can be explained. Flags raise the level, never lower it. Accuracy is measured with
+`python -m evals.laya_text_eval --holdout --fresh` (hand-labelled complaints; `--keywords` scores the no-AI keyword
+rules the same way).
 
 If Laya's top group probability is under `GROUP_CONFIDENCE_THRESHOLD` (0.6) and the complaint has customer text,
 Laya's top pick is still used and the case is marked `low_confidence` for staff to check. A CSV backlog row has no
