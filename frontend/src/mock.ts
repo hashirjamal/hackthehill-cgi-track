@@ -9,47 +9,9 @@ import type {
   FlowRow,
   ProfileRow,
   RootCauseRow,
-  WorklistRow,
 } from './types'
 
-export const REGIONS = ['Ashford', 'Barrowdale', 'Calderfield', 'Dunmoor', 'Eastmarch', 'Fenwick']
-export const CATEGORIES = [
-  'Billing - disputed amount',
-  'Billing - estimated read',
-  'Metering - no read taken',
-  'Payment - plan or arrears',
-  'Supply - interruption',
-  'Water - pressure or quality',
-  'Service - missed appointment',
-  'Service - poor communication',
-  'Other',
-]
-export const PRIORITIES = ['P1', 'P2', 'P3']
-export const LANES = ['emergency', 'review', 'quick_lane', 'standard']
-export const CHANNELS = ['Phone', 'Web form', 'Email', 'Social', 'Post', 'Regulator referral']
-export const TEAMS = [
-  'Billing team',
-  'Metering team',
-  'Collections',
-  'Network operations',
-  'Water operations',
-  'Field services',
-  'Customer care leads',
-  'General review queue',
-]
-
-export const worklist: WorklistRow[] = [
-  { complaint_id: 'NW-124358', account_id: 'ACC-610284', category: 'Supply - interruption', region: 'Fenwick', priority: 'P1', classified_priority: 'P1', days_overdue: 13, breached_live: true, domain: 'field_services', routed_team: 'Network operations', lane: 'standard', likely_cause: null, next_action: 'Dispatch an engineer' },
-  { complaint_id: 'NW-124487', account_id: 'ACC-337102', category: 'Water - pressure or quality', region: 'Ashford', priority: 'P1', classified_priority: 'P1', days_overdue: 11, breached_live: true, domain: 'field_services', routed_team: 'Water operations', lane: 'standard', likely_cause: null, next_action: 'Book a field repair' },
-  { complaint_id: 'NW-120404', account_id: 'ACC-943644', category: 'Billing - estimated read', region: 'Barrowdale', priority: 'P3', classified_priority: 'P2', days_overdue: 106, breached_live: true, domain: 'billing', routed_team: 'Metering team', lane: 'standard', likely_cause: 'estimated_reading', next_action: 'Take a real reading, then correct the bill' },
-  { complaint_id: 'NW-120856', account_id: 'ACC-592536', category: 'Billing - disputed amount', region: 'Dunmoor', priority: 'P3', classified_priority: 'P2', days_overdue: 94, breached_live: true, domain: 'billing', routed_team: 'Billing team', lane: 'standard', likely_cause: 'estimated_reading', next_action: 'Review the disputed charge' },
-  { complaint_id: 'NW-122297', account_id: 'ACC-830825', category: 'Payment - plan or arrears', region: 'Eastmarch', priority: 'P2', classified_priority: 'P2', days_overdue: 57, breached_live: true, domain: 'billing', routed_team: 'Collections', lane: 'standard', likely_cause: null, next_action: 'Offer a payment plan' },
-  { complaint_id: 'NW-122814', account_id: 'ACC-455019', category: 'Service - missed appointment', region: 'Calderfield', priority: 'P3', classified_priority: 'P2', days_overdue: 44, breached_live: true, domain: 'field_services', routed_team: 'Field services', lane: 'standard', likely_cause: null, next_action: 'Rebook the appointment' },
-  { complaint_id: 'NW-121979', account_id: 'ACC-563523', category: 'Service - poor communication', region: 'Calderfield', priority: 'P3', classified_priority: 'P3', days_overdue: 2, breached_live: true, domain: 'customer_support', routed_team: 'Customer care leads', lane: 'quick_lane', likely_cause: null, next_action: 'Approve the drafted reply' },
-  { complaint_id: 'NW-124911', account_id: 'ACC-208871', category: 'Metering - no read taken', region: 'Dunmoor', priority: 'P3', classified_priority: 'P3', days_overdue: -8, breached_live: false, domain: 'metering', routed_team: 'Metering team', lane: null, likely_cause: null, next_action: null },
-  { complaint_id: 'NW-124760', account_id: 'ACC-771640', category: 'Other', region: 'Fenwick', priority: 'P3', classified_priority: 'P3', days_overdue: -12, breached_live: false, domain: 'general', routed_team: 'General review queue', lane: 'review', likely_cause: null, next_action: 'Review and route' },
-  { complaint_id: 'NW-124802', account_id: 'ACC-119033', category: 'Billing - disputed amount', region: 'Ashford', priority: 'P2', classified_priority: 'P2', days_overdue: -3, breached_live: false, domain: 'billing', routed_team: 'Billing team', lane: null, likely_cause: null, next_action: null },
-]
+export { CATEGORIES, CHANNELS, LANES, PRIORITIES, REGIONS, TEAMS } from './constants'
 
 // Opened and closed per month, Oct 2024 to Sep 2026. The backlog is worked out from them.
 const OPENED = [912, 830, 951, 985, 851, 901, 1023, 1004, 982, 1222, 1026, 1020, 1189, 940, 1120, 1177, 1002, 1171, 1190, 1049, 1164, 1271, 1185, 1251]

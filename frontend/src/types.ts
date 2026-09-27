@@ -5,16 +5,29 @@ export type Priority = 'P1' | 'P2' | 'P3'
 export interface WorklistRow {
   complaint_id: string
   account_id: string
+  date_opened: string
+  channel: string
   category: string
-  region: string
   priority: Priority
-  classified_priority: Priority
+  region: string
+  source_system: string
+  sla_days: number
+  days_open: number
   days_overdue: number
   breached_live: boolean
   domain: string
+  classification_id: number | null
+  group_name: string | null
+  subcategory: string | null
+  classified_priority: Priority
+  base_priority: Priority | null
+  base_priority_source: string | null
   routed_team: string | null
   lane: 'emergency' | 'review' | 'quick_lane' | 'standard' | null
   likely_cause: string | null
+  low_confidence: boolean | null
+  region_estimated_read_rate: number | null
+  open_actions: number
   next_action: string | null
 }
 
