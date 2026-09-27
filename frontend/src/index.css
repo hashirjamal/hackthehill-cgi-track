@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+/* The look of the app lives here. Page: a gray tint. Cards: a bit whitish. No borders, only rounded corners.
+   Brand is a deep purple (purple-800), used for titles, links, buttons and the charts. */
+@theme {
+  --color-page: #eeeff4;
+  --color-card: #fbfbfd;
+
+  --color-brand: #6b21a8;
+  --color-brand-dark: #581c87;
+  --color-brand-soft: #f3ebfa;
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* A step bigger than Tailwind's defaults, so text reads comfortably. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.15rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.4rem;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.6rem;
+  --text-lg: 1.1875rem;
+  --text-lg--line-height: 1.65rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.8rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.1rem;
+  --text-3xl: 2.125rem;
+  --text-3xl--line-height: 2.4rem;
+  --text-4xl: 2.75rem;
+  --text-4xl--line-height: 1;
+}
+
+body {
+  @apply bg-page text-gray-800 antialiased;
+  font-feature-settings: 'cv11', 'ss01'; /* Inter's single-storey a and open digits, easier to read */
+}
+
+/* Keep the layout from jumping when the scrollbar appears. */
+html {
+  scrollbar-gutter: stable;
+}
