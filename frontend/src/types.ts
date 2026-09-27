@@ -37,15 +37,19 @@ export interface FlowRow {
   closed: number
   net_change: number
   backlog_end_of_month: number
+  avg_days_to_close: number | null
+  breach_rate_closed: number | null
 }
 
+/** One group of the open backlog. The grouping column (region, category ...) is named by `group_by`. */
 export interface BreakdownRow {
-  region: string
   open_cases: number
   breached_cases: number
   at_risk_cases: number
   total_days_overdue: number
+  avg_days_open: number
   share_of_backlog: number
+  [column: string]: string | number | boolean | null
 }
 
 export interface RootCauseRow {

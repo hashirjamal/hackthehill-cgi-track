@@ -58,6 +58,8 @@ export function useListParams({ pageSize: defaultPageSize = 10 }: { pageSize?: n
     setPage: (p: number) => update({ page: p > 1 ? String(p) : undefined }, false),
     setPageSize: (n: number) => update({ page_size: n === defaultPageSize ? undefined : String(n) }, true),
     setSort: (s: string | undefined) => update({ sort: s }, true),
+    /** Several changes as one update. Router updates are not queued, so two calls in a row would lose the first. */
+    setMany: (patch: Record<string, string | undefined>) => update(patch, true),
     hasFilters: Object.keys(filters).length > 0,
     clearFilters: () => setSearch({}, { replace: true }),
   }

@@ -2,45 +2,14 @@
 import type {
   AccountHistoryRow,
   AgentResultRow,
-  BreakdownRow,
   CaseRow,
   ClassificationSummaryRow,
   ClusterRow,
-  FlowRow,
   ProfileRow,
   RootCauseRow,
 } from './types'
 
 export { CATEGORIES, CHANNELS, LANES, PRIORITIES, REGIONS, TEAMS } from './constants'
-
-// Opened and closed per month, Oct 2024 to Sep 2026. The backlog is worked out from them.
-const OPENED = [912, 830, 951, 985, 851, 901, 1023, 1004, 982, 1222, 1026, 1020, 1189, 940, 1120, 1177, 1002, 1171, 1190, 1049, 1164, 1271, 1185, 1251]
-const CLOSED = [476, 760, 873, 927, 840, 901, 952, 942, 965, 1062, 1089, 1000, 1029, 1067, 1019, 1025, 1000, 1117, 1109, 1146, 1063, 1163, 1130, 1162]
-
-export const flow: FlowRow[] = (() => {
-  let backlog = 0
-  return OPENED.map((opened, i) => {
-    const closed = CLOSED[i]
-    backlog += opened - closed
-    const d = new Date(2024, 9 + i, 1)
-    return {
-      month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-      opened,
-      closed,
-      net_change: opened - closed,
-      backlog_end_of_month: backlog,
-    }
-  })
-})()
-
-export const breakdown: BreakdownRow[] = [
-  { region: 'Fenwick', open_cases: 284, breached_cases: 155, at_risk_cases: 21, total_days_overdue: 2652, share_of_backlog: 0.1776 },
-  { region: 'Barrowdale', open_cases: 275, breached_cases: 143, at_risk_cases: 28, total_days_overdue: 2535, share_of_backlog: 0.172 },
-  { region: 'Calderfield', open_cases: 270, breached_cases: 148, at_risk_cases: 26, total_days_overdue: 2428, share_of_backlog: 0.1689 },
-  { region: 'Eastmarch', open_cases: 268, breached_cases: 140, at_risk_cases: 24, total_days_overdue: 2339, share_of_backlog: 0.1676 },
-  { region: 'Dunmoor', open_cases: 259, breached_cases: 134, at_risk_cases: 22, total_days_overdue: 2283, share_of_backlog: 0.162 },
-  { region: 'Ashford', open_cases: 243, breached_cases: 121, at_risk_cases: 22, total_days_overdue: 3161, share_of_backlog: 0.152 },
-]
 
 export const rootCause: RootCauseRow[] = [
   { month: '2026-09', region: 'Barrowdale', estimated_read_rate: 0.62, smart_meter_penetration: 0, billing_exceptions_per_1000: 25.4, complaints: 176, billing_metering_per_1000: 0.44 },

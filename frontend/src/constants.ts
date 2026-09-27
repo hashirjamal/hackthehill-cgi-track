@@ -31,3 +31,9 @@ export const TEAMS = [
 ]
 export const STATUSES = ['Open', 'Closed', 'Closed - reopened']
 export const SOURCE_SYSTEMS = ['SYS-01', 'SYS-03', 'SYS-04', 'SYS-05']
+
+/** Every month in the data, Oct 2024 to Sep 2026. */
+export const MONTHS = Array.from({ length: 24 }, (_, i) => {
+  const d = new Date(2024, 9 + i, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+})

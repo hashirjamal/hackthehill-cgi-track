@@ -1,7 +1,7 @@
 /** Hooks for the reporting API (GET /reports/...) and the classification call. One hook for each endpoint. */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toastLoading, toastSuccess } from '../lib/notify'
-import type { WorklistRow } from '../types'
+import type { BreakdownRow, FlowRow, WorklistRow } from '../types'
 import { apiGet, apiPost, type Params } from './client'
 import type { Page } from './types'
 
@@ -33,6 +33,21 @@ function useTotal(path: string, filters: Params, label: string) {
 
 export const useWorklist = (params: Params) => useList<WorklistRow>('worklist', params, 'the worklist')
 export const useWorklistTotal = (filters: Params, label: string) => useTotal('worklist', filters, label)
+
+// --- Backlog ------------------------------------------------------------------------------------
+
+export const useBacklogFlow = (params: Params) => useList<FlowRow>('backlog-flow', params, 'the backlog history')
+
+export interface BreakdownPage extends Page<BreakdownRow> {
+  group_by: string[]
+}
+export const useBacklogBreakdown = (params: Params) =>
+  useQuery({
+    queryKey: [REPORTS, 'backlog-breakdown', params],
+    queryFn: ({ signal }) => apiGet<BreakdownPage>('/reports/backlog-breakdown', params, signal),
+    placeholderData: keepPreviousData,
+    meta: { label: 'the backlog breakdown' },
+  })
 
 // --- Classification -----------------------------------------------------------------------------
 
