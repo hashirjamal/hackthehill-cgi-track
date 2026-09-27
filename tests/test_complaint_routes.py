@@ -73,9 +73,20 @@ def _client(monkeypatch):
 
 def test_process_complaint_creates_an_agent_run_and_a_draft(monkeypatch):
     client, TestSession = _client(monkeypatch)
+    # Seed a v_case_profile row with info_only_share >= 0.5, so TemplateBackend.draft() actually
+    # produces a draft_reply (not just an action item) - matching what the test's name promises.
+    seed_db = TestSession()
+    seed_db.execute(text(
+        "INSERT INTO v_case_profile VALUES ('Service - poor communication', 'Ashford', 'SYS-01', "
+        "100, 10.0, 0.6, 0.1, 0.05, 0.2, 'Information provided')"
+    ))
+    seed_db.commit()
+    seed_db.close()
+
     response = client.post("/complaints/process", json={
         "as_of_date": "2026-09-30",
-        "complaints": [{"complaint_id": "NW-1", "category": "Service - poor communication", "account_id": "ACC-1"}],
+        "complaints": [{"complaint_id": "NW-1", "category": "Service - poor communication",
+                         "region": "Ashford", "source_system": "SYS-01", "account_id": "ACC-1"}],
     })
     assert response.status_code == 200
 
@@ -83,6 +94,9 @@ def test_process_complaint_creates_an_agent_run_and_a_draft(monkeypatch):
     run = db.query(AgentRun).filter_by(complaint_id="NW-1").one()
     assert run.status == "succeeded"
     assert run.model == "template"
+    drafts = db.query(DraftResponse).filter_by(complaint_id="NW-1").all()
+    assert len(drafts) == 1 and drafts[0].body
+    assert db.query(ActionItem).filter_by(complaint_id="NW-1").count() == 1
     db.close()
 
 
@@ -95,3 +109,21 @@ def test_a_batch_with_no_case_history_still_returns_200(monkeypatch):
         "complaints": [{"complaint_id": "NW-2", "category": "Other", "account_id": "ACC-2"}],
     })
     assert response.status_code == 200
+
+
+def test_a_batch_of_several_complaints_creates_an_agent_run_for_each(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    response = client.post("/complaints/process", json={
+        "as_of_date": "2026-09-30",
+        "complaints": [
+            {"complaint_id": "NW-3", "category": "Other", "account_id": "ACC-3"},
+            {"complaint_id": "NW-4", "category": "Metering - no read taken", "account_id": "ACC-4"},
+        ],
+    })
+    assert response.status_code == 200
+
+    db = TestSession()
+    runs = db.query(AgentRun).filter(AgentRun.complaint_id.in_(["NW-3", "NW-4"])).all()
+    assert {r.complaint_id for r in runs} == {"NW-3", "NW-4"}
+    assert all(r.status == "succeeded" for r in runs)
+    db.close()
