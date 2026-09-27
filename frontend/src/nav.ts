@@ -1,4 +1,4 @@
-import { Bot, BookOpen, FolderSearch, Gauge, Layers, ListChecks, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react'
+import { Bot, BookOpen, FilePlus2, FolderSearch, Gauge, Layers, ListChecks, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
   to: string
@@ -16,6 +16,7 @@ export const navGroups: NavGroup[] = [
   {
     title: 'Work',
     items: [
+      { to: '/intake', label: 'New complaint', icon: FilePlus2 },
       { to: '/worklist', label: 'Worklist', icon: ListChecks },
       { to: '/cases', label: 'Cases', icon: FolderSearch },
     ],

@@ -4,6 +4,7 @@ import Accounts from './pages/Accounts'
 import Backlog from './pages/Backlog'
 import CaseDetail from './pages/CaseDetail'
 import Cases from './pages/Cases'
+import Intake from './pages/Intake'
 import Classification from './pages/Classification'
 import Profiles from './pages/Profiles'
 import RootCause from './pages/RootCause'
@@ -15,6 +16,7 @@ export default function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route index element={<Navigate to="/worklist" replace />} />
+        <Route path="intake" element={<Intake />} />
         <Route path="worklist" element={<Worklist />} />
         <Route path="cases" element={<Cases />} />
         <Route path="cases/:id" element={<CaseDetail />} />

@@ -177,10 +177,11 @@ CREATE INDEX ON classifications (complaint_id);
 CREATE UNIQUE INDEX one_current_classification
     ON classifications (complaint_id) WHERE is_current;
 
--- Audit of each AI agent run
+-- Audit of each AI agent run. complaint_id has no foreign key on purpose, as in `classifications`:
+-- agents also run on new complaints that are not in `complaints` yet. Same for the next two tables.
 CREATE TABLE agent_runs (
     run_id            BIGSERIAL PRIMARY KEY,
-    complaint_id      TEXT NOT NULL REFERENCES complaints(complaint_id),
+    complaint_id      TEXT NOT NULL,
     agent_id          TEXT NOT NULL REFERENCES ai_agents(agent_id),
     classification_id BIGINT REFERENCES classifications(id),
     status            TEXT NOT NULL CHECK (status IN ('running','succeeded','failed')),
@@ -192,9 +193,10 @@ CREATE TABLE agent_runs (
 );
 CREATE INDEX ON agent_runs (complaint_id);
 
+-- complaint_id has no foreign key on purpose (see agent_runs).
 CREATE TABLE draft_responses (
     draft_id     BIGSERIAL PRIMARY KEY,
-    complaint_id TEXT NOT NULL REFERENCES complaints(complaint_id),
+    complaint_id TEXT NOT NULL,
     run_id       BIGINT REFERENCES agent_runs(run_id),
     body         TEXT NOT NULL,                       -- as generated
     status       TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','approved','edited','rejected','sent')),
@@ -205,9 +207,10 @@ CREATE TABLE draft_responses (
 );
 CREATE INDEX ON draft_responses (complaint_id);
 
+-- complaint_id has no foreign key on purpose (see agent_runs).
 CREATE TABLE action_items (
     action_id     BIGSERIAL PRIMARY KEY,
-    complaint_id  TEXT NOT NULL REFERENCES complaints(complaint_id),
+    complaint_id  TEXT NOT NULL,
     run_id        BIGINT REFERENCES agent_runs(run_id),
     action_type   TEXT NOT NULL,                      -- correct_bill, book_meter_read, rebook_appointment, escalate_field, call_customer, send_reply ...
     description   TEXT NOT NULL,
@@ -272,3 +275,7 @@ INSERT INTO categories (category, agent_id) VALUES
     ('Other',                        'general');
 
 INSERT INTO app_settings (key, value) VALUES ('as_of_date', '2026-09-30');
+
+-- Placeholder until real staff accounts/auth exist. The chat endpoint defaults new sessions to
+-- this row (staff_id 1) so there is something for chat_sessions.staff_id to reference.
+INSERT INTO staff (name, role, team) VALUES ('Demo Staff', 'contact_centre', 'billing');

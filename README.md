@@ -59,22 +59,28 @@ curl -X POST localhost:8000/laya/predict -H 'content-type: application/json' -d 
 ## Complaint classification
 
 `POST /complaints/process` classifies complaints with Laya and stores the result in the `classifications` table
-(one current row per complaint, older rows kept as history). Today it runs the classification layer only; the
-domain AI agents will be called from the same endpoint later.
+(one current row per complaint, older rows kept as history). It then runs the matching domain AI agent - see
+"Domain AI agents" below.
 
 Rules and taxonomy: `app/classification/` (`taxonomy.py` groups, routes and Laya questions, `rules.py` priority
 and flag rules, `service.py` the pipeline). Thresholds are in `app/config.py` and can be set in `.env`
 (`GROUP_CONFIDENCE_THRESHOLD`, `FLAG_THRESHOLD`, `EMERGENCY_THRESHOLD`, `AS_OF_DATE`).
 
-**Laya runs every step on every complaint**, even when the data already has a category or priority. New complaints
-have no text, so Laya reads a description of the record (category, channel, priority, region, source system,
-whether it was transferred), plus the text if there is any. The category in the data is not used to skip a step. It is
-compared with Laya's answer afterwards (`group_matches_data`, `subcategory_matches_data`). The one exception is
-priority: Northwind's priority (or the level that goes with its `sla_days`) is the starting point, and Laya's urgency
-score is used only when the complaint has neither. Flags then raise it, never lower it.
+**Laya runs every step on every complaint.** Per the current plan (see `docs/OPTIMIZATION_PLAN.md`), Laya reads the
+intake template's answers - filled in by one of the 4 intake teams, whose only job is that template - plus the text
+if there is any, and decides the urgency on its own: Northwind's historic priority is not used as the starting
+point, because their way of deciding if something was urgent was not that good. Flags then raise the level, never
+lower it.
 
-If Laya's top group probability is under `GROUP_CONFIDENCE_THRESHOLD` (0.6), the group and category already in the
-data are used instead, and stage 2 is skipped. Only a complaint with no data category goes to the review queue.
+If Laya's top group probability is under `GROUP_CONFIDENCE_THRESHOLD` (0.6), Laya's top pick is still used (we
+classify into our own categories, never Northwind's) and the case is marked `low_confidence` for staff to check.
+Northwind's priority is not shown to Laya at all. Deadline risk (open over 75% of our target) is a marker only: most
+of the backlog is past target, so letting it raise urgency would make everything P1.
+
+**New complaints:** `POST /complaints/intake` (the "New complaint" page) takes the intake template - account, region,
+intake system, channel and what the customer said - runs Laya, and saves the complaint as an open case, so it is on
+the worklist immediately. **The existing open backlog** is classified once with `python -m app.classify_backlog`
+(safe to stop and re-run; complaints already on the current classifier version are skipped).
 
 **The model loads once when the server starts** (plus one warm-up call), so no request pays for it. Set
 `PRELOAD_LAYA=false` to skip that in development. Answers are cached by state, so complaints that describe the same
@@ -92,6 +98,47 @@ curl -X POST localhost:8000/complaints/process -H 'content-type: application/jso
 ```
 
 Tests (no model download needed): `pip install pytest && python -m pytest`.
+
+## Domain AI agents (two buttons on a case, no chatbot)
+
+The domain agent never runs on its own, and there's no chat/message box - just two one-shot
+actions on a specific complaint's case view. Classification (above) happens for every complaint;
+the agent only runs when staff click one of these:
+
+```bash
+# "Get context" - runs the agent's read-only tools, returns action items, drafts nothing.
+curl -X POST localhost:8000/complaints/NW-124233/context
+
+# "Generate draft" - runs the same read-only tools, then drafts one reply for staff to review.
+curl -X POST localhost:8000/complaints/NW-124233/draft
+```
+
+It never acts on a real account - it only looks things up (via [LangChain](https://python.langchain.com)
+tools bound to that one complaint, `app/agents/tools.py`) to help staff decide what to do. Each
+button binds a different single output tool, so the model can't produce the wrong kind of output
+regardless of what it decides to do: `/context` gives it `create_action_brief` (writes to
+`action_items`) and nothing else can write; `/draft` gives it `save_draft_reply` (writes to
+`draft_responses`, never sent automatically) and nothing else can write. Both log an `agent_runs`
+row (status, error, timestamps) for audit, whether the run succeeds or fails.
+
+Every domain shares four context tools: reading the complaint's own details, pulling the
+account's other complaints, the historic pattern for this category/region/system, and the
+region's meter picture. None of them reference anything domain-specific - they just look up
+whatever complaint is open - so there was no reason to build them five times. General
+additionally gets `search_knowledge_base`, a small static FAQ lookup for general information
+questions ("how do I pay my bill?" and similar).
+
+By default it calls a local [Ollama](https://ollama.com) model (`OLLAMA_HOST`, default
+`http://localhost:11434`; `AGENT_MODEL`, default `gemma4` - **gemma3 has no tool-calling support in
+Ollama at all**, gemma4 does; pull whatever you actually run with `ollama pull <model>` and set
+`AGENT_MODEL` to match; `AGENT_TIMEOUT_SECONDS`, default `30.0`, per call). Set `AGENT_ENABLED=false`
+to turn the agent off entirely (requirement N6's confidentiality fallback) - both endpoints record
+a failed run and return one instead of calling an LLM, which is also what the test suite uses so
+it never needs a running Ollama server.
+
+`app/agents/config.py`'s `AGENT_CONFIGS` holds each domain's instructions - a real but generic
+default today. That's the file to edit together to write the actual system-prompt wording; a new
+domain-specific tool is a new entry in `app/agents/tools.py`'s `build_context_tools_for`.
 
 ## Database setup (Tiger Data or any Postgres)
 

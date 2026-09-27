@@ -11,8 +11,9 @@ class ComplaintIn(BaseModel):
     # Laya reads a description of these fields (and the text, if there is any). New complaints have no text.
     text: str | None = Field(default=None, description="What the customer said, if recorded")
     category: str | None = Field(default=None, description="A Northwind data category, e.g. 'Billing - disputed amount'")
+    # Northwind's own labels. Accepted so CSV rows can be sent as they are, but ignored: urgency is Laya's call.
     priority: Literal["P1", "P2", "P3"] | None = None
-    sla_days: int | None = Field(default=None, gt=0, description="Northwind's existing target, if the case has one")
+    sla_days: int | None = Field(default=None, gt=0, description="Northwind's existing target; ignored")
     channel: str | None = None  # e.g. "Phone", "Regulator referral"
     region: str | None = None
     source_system: str | None = None  # e.g. "SYS-05"
@@ -31,6 +32,24 @@ class ComplaintIn(BaseModel):
         return self
 
 
+class IntakeRequest(BaseModel):
+    """The intake template one of the four intake systems fills in for a brand-new complaint.
+    No category or priority: Laya decides both from the text."""
+
+    account_id: str = Field(min_length=1, max_length=32)
+    text: str = Field(min_length=1, description="What the customer said, in their words or a close summary")
+    channel: Literal["Phone", "Web form", "Email", "Social", "Post", "Regulator referral"]
+    region: str
+    source_system: Literal["SYS-01", "SYS-03", "SYS-04", "SYS-05"]  # the four intake systems
+
+    @model_validator(mode="after")
+    def check_text(self):
+        self.account_id = self.account_id.strip()
+        if not self.text.strip():
+            raise ValueError("describe what the customer said, so Laya has something to classify")
+        return self
+
+
 class ProcessRequest(BaseModel):
     complaints: list[ComplaintIn] = Field(min_length=1, max_length=100)
     as_of_date: date | None = Field(default=None, description="Days open are measured to this date")
@@ -38,7 +57,7 @@ class ProcessRequest(BaseModel):
 
 class GroupOut(BaseModel):
     name: str  # the group used for routing
-    source: str  # "laya", or "data" when Laya was under the confidence threshold and the data had a category
+    source: str  # always "laya" now; "data" appears only on classifications stored before v5
     laya_name: str  # Laya's own pick, kept for comparison
     confidence: float  # Laya's top stage 1 probability
     probabilities: dict[str, float]
@@ -46,15 +65,15 @@ class GroupOut(BaseModel):
 
 class SubcategoryOut(BaseModel):
     name: str  # a Northwind data category
-    source: str  # "laya" or "data"
+    source: str  # always "laya" now; "data" appears only on classifications stored before v5
     confidence: float | None  # None when the group has only one subcategory, or the data was used
 
 
 class PriorityOut(BaseModel):
     level: str  # P1, P2 or P3
     target_days: int
-    base_level: str  # before flags: Northwind's priority when it has one, else Laya's urgency score
-    base_source: str  # "data", "laya" or "emergency"
+    base_level: str  # before flags: Laya's urgency score
+    base_source: str  # "laya" or "emergency" ("data" only on classifications stored before v5)
     urgency_score: float | None  # None when the base came from the data, and for emergencies
     raised_by: list[str]
 
@@ -78,8 +97,8 @@ class ClassificationResult(BaseModel):
     emergency: bool
     emergency_probability: float
     group: GroupOut | None = None  # None for emergencies
-    subcategory: SubcategoryOut | None = None  # None for emergencies, and for low confidence with no data category
-    low_confidence: bool = False  # Laya's top group probability was under the threshold
+    subcategory: SubcategoryOut | None = None  # None for emergencies
+    low_confidence: bool = False  # Laya's top group probability was under the threshold; its pick is still used
     priority: PriorityOut
     routing: RoutingOut
     flags: list[FlagOut] = []  # flags that fired
@@ -95,3 +114,10 @@ class ClassificationResult(BaseModel):
 class ProcessResponse(BaseModel):
     as_of_date: date
     results: list[ClassificationResult]
+
+
+class IntakeResponse(BaseModel):
+    complaint_id: str  # the new complaint's id, now on the worklist
+    category: str  # the Northwind category it was filed under (Laya's subcategory, or "Other")
+    as_of_date: date
+    classification: ClassificationResult

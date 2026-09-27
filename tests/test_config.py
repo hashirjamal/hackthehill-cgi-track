@@ -24,3 +24,13 @@ def test_as_of_date_comes_from_app_settings_when_the_table_exists():
 
         db.execute(text("INSERT INTO app_settings VALUES ('as_of_date', '2026-09-30')"))
         assert db_as_of_date(db) == date(2026, 9, 30)
+
+
+def test_agent_settings_have_working_defaults():
+    from app.config import Settings
+
+    s = Settings(database_url="sqlite:///./dev.db")
+    assert s.agent_enabled is True
+    assert s.agent_model == "gemma4"
+    assert s.ollama_host == "http://localhost:11434"
+    assert s.agent_timeout_seconds == 30.0
