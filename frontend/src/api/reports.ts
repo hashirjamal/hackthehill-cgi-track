@@ -1,7 +1,7 @@
 /** Hooks for the reporting API (GET /reports/...) and the classification call. One hook for each endpoint. */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toastLoading, toastSuccess } from '../lib/notify'
-import type { BreakdownRow, FlowRow, WorklistRow } from '../types'
+import type { BreakdownRow, ClusterRow, FlowRow, RootCauseRow, WorklistRow } from '../types'
 import { apiGet, apiPost, type Params } from './client'
 import type { Page } from './types'
 
@@ -48,6 +48,12 @@ export const useBacklogBreakdown = (params: Params) =>
     placeholderData: keepPreviousData,
     meta: { label: 'the backlog breakdown' },
   })
+
+// --- Root cause ---------------------------------------------------------------------------------
+
+export const useRootCause = (params: Params, label = 'the root-cause figures') => useList<RootCauseRow>('root-cause', params, label)
+export const useRootCauseClusters = (params: Params, label = 'the backlog clusters') =>
+  useList<ClusterRow>('root-cause/clusters', params, label)
 
 // --- Classification -----------------------------------------------------------------------------
 

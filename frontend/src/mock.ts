@@ -4,32 +4,10 @@ import type {
   AgentResultRow,
   CaseRow,
   ClassificationSummaryRow,
-  ClusterRow,
   ProfileRow,
-  RootCauseRow,
 } from './types'
 
 export { CATEGORIES, CHANNELS, LANES, PRIORITIES, REGIONS, TEAMS } from './constants'
-
-export const rootCause: RootCauseRow[] = [
-  { month: '2026-09', region: 'Barrowdale', estimated_read_rate: 0.62, smart_meter_penetration: 0, billing_exceptions_per_1000: 25.4, complaints: 176, billing_metering_per_1000: 0.44 },
-  { month: '2026-09', region: 'Dunmoor', estimated_read_rate: 0.615, smart_meter_penetration: 0, billing_exceptions_per_1000: 25.2, complaints: 189, billing_metering_per_1000: 0.71 },
-  { month: '2026-09', region: 'Fenwick', estimated_read_rate: 0.26, smart_meter_penetration: 0.81, billing_exceptions_per_1000: 10.7, complaints: 206, billing_metering_per_1000: 0.53 },
-  { month: '2026-09', region: 'Calderfield', estimated_read_rate: 0.21, smart_meter_penetration: 0.81, billing_exceptions_per_1000: 8.8, complaints: 188, billing_metering_per_1000: 0.32 },
-  { month: '2026-09', region: 'Ashford', estimated_read_rate: 0.25, smart_meter_penetration: 0.81, billing_exceptions_per_1000: 10.3, complaints: 201, billing_metering_per_1000: 0.28 },
-  { month: '2026-09', region: 'Eastmarch', estimated_read_rate: 0.18, smart_meter_penetration: 0.81, billing_exceptions_per_1000: 7.4, complaints: 193, billing_metering_per_1000: 0.36 },
-  { month: '2026-08', region: 'Barrowdale', estimated_read_rate: 0.63, smart_meter_penetration: 0, billing_exceptions_per_1000: 25.6, complaints: 171, billing_metering_per_1000: 0.42 },
-  { month: '2026-08', region: 'Dunmoor', estimated_read_rate: 0.6, smart_meter_penetration: 0, billing_exceptions_per_1000: 24.9, complaints: 184, billing_metering_per_1000: 0.69 },
-]
-
-export const clusters: ClusterRow[] = [
-  { region: 'Barrowdale', category: 'Billing - estimated read', open_cases: 80, breached_cases: 39, region_estimated_read_rate: 0.62, estimation_driven: true },
-  { region: 'Dunmoor', category: 'Billing - estimated read', open_cases: 64, breached_cases: 28, region_estimated_read_rate: 0.615, estimation_driven: true },
-  { region: 'Barrowdale', category: 'Metering - no read taken', open_cases: 46, breached_cases: 24, region_estimated_read_rate: 0.62, estimation_driven: true },
-  { region: 'Dunmoor', category: 'Metering - no read taken', open_cases: 38, breached_cases: 19, region_estimated_read_rate: 0.615, estimation_driven: true },
-  { region: 'Fenwick', category: 'Billing - disputed amount', open_cases: 96, breached_cases: 52, region_estimated_read_rate: 0.26, estimation_driven: false },
-  { region: 'Calderfield', category: 'Billing - disputed amount', open_cases: 91, breached_cases: 49, region_estimated_read_rate: 0.21, estimation_driven: false },
-]
 
 export const cases: CaseRow[] = [
   { complaint_id: 'NW-124358', date_opened: '2026-09-17', status: 'Open', category: 'Supply - interruption', region: 'Fenwick', priority: 'P1', days_open: 13, breached_live: true, routed_team: 'Network operations', resolution_action: null },

@@ -10,6 +10,7 @@ import StatCard, { StatRow } from '../components/StatCard'
 import { CATEGORIES, LANES, PRIORITIES, REGIONS, TEAMS } from '../constants'
 import { useListParams } from '../hooks/useListParams'
 import { num, pct } from '../lib/format'
+import { serverTable } from '../lib/serverTable'
 import type { WorklistRow } from '../types'
 
 const CLASSIFY_AT_A_TIME = 10
@@ -163,22 +164,7 @@ export default function Worklist() {
           columns={columns}
           rows={rows}
           rowKey={(r) => r.complaint_id}
-          server={{
-            // The numbers of the rows on screen, which are the previous page's while the next one loads.
-            page: query.data?.page ?? list.page,
-            pageSize: query.data?.page_size ?? list.pageSize,
-            total: query.data?.total ?? 0,
-            totalPages: query.data?.total_pages ?? 1,
-            sort: list.sort,
-            onPageChange: list.setPage,
-            onPageSizeChange: list.setPageSize,
-            onSortChange: list.setSort,
-            isLoading: query.isPending,
-            isFetching: query.isFetching,
-            error: query.error,
-            onRetry: () => void query.refetch(),
-            onClearFilters: list.hasFilters ? list.clearFilters : undefined,
-          }}
+          server={serverTable(list, query)}
         />
       </Card>
     </>

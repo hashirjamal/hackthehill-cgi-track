@@ -13,6 +13,7 @@ import StatCard, { StatRow } from '../components/StatCard'
 import { CATEGORIES, MONTHS, PRIORITIES, REGIONS } from '../constants'
 import { useListParams } from '../hooks/useListParams'
 import { num, pct } from '../lib/format'
+import { serverTable } from '../lib/serverTable'
 import type { BreakdownRow, Priority } from '../types'
 
 const GROUPS = [
@@ -148,20 +149,8 @@ export default function Backlog() {
           columns={columns}
           rows={breakdown.data?.items ?? []}
           rowKey={(r) => String(r[shownGroup])}
-          server={{
-            page: breakdown.data?.page ?? list.page,
-            pageSize: breakdown.data?.page_size ?? list.pageSize,
-            total: breakdown.data?.total ?? 0,
-            totalPages: breakdown.data?.total_pages ?? 1,
-            sort: list.sort,
-            onPageChange: list.setPage,
-            onPageSizeChange: list.setPageSize,
-            onSortChange: list.setSort,
-            isLoading: breakdown.isPending,
-            isFetching: breakdown.isFetching,
-            error: breakdown.error,
-            onRetry: () => void breakdown.refetch(),
-          }}
+          // Sorting and paging follow the breakdown's own query, and the URL's sort is cleared when the grouping changes.
+          server={serverTable(list, breakdown)}
         />
       </Card>
     </>

@@ -55,11 +55,15 @@ export interface BreakdownRow {
 export interface RootCauseRow {
   month: string
   region: string
+  accounts: number
   estimated_read_rate: number
   smart_meter_penetration: number
+  billing_exceptions_raised: number
   billing_exceptions_per_1000: number
   complaints: number
+  billing_metering_complaints: number
   billing_metering_per_1000: number
+  billing_metering_share: number | null
 }
 
 export interface ClusterRow {
@@ -67,7 +71,12 @@ export interface ClusterRow {
   category: string
   open_cases: number
   breached_cases: number
-  region_estimated_read_rate: number
+  avg_days_open: number
+  share_of_region_backlog: number
+  region_estimated_read_rate: number | null
+  region_smart_meter_penetration: number | null
+  region_billing_exceptions_per_1000: number | null
+  estimation_prone: boolean
   estimation_driven: boolean
 }
 
