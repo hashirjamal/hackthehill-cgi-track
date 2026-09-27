@@ -1,7 +1,7 @@
 /** Hooks for the reporting API (GET /reports/...) and the classification call. One hook for each endpoint. */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toastLoading, toastSuccess } from '../lib/notify'
-import type { BreakdownRow, CaseRow, ClusterRow, FlowRow, RootCauseRow, WorklistRow } from '../types'
+import type { BreakdownRow, CaseContext, CaseRow, ClusterRow, FlowRow, RootCauseRow, WorklistRow } from '../types'
 import { apiGet, apiPost, type Params } from './client'
 import type { Page } from './types'
 
@@ -59,6 +59,14 @@ export const useRootCauseClusters = (params: Params, label = 'the backlog cluste
 
 export const useCases = (params: Params) => useList<CaseRow>('cases', params, 'the cases')
 
+/** One case with its context. A 404 is an answer ("no such complaint"), not something to retry. */
+export const useCaseContext = (id: string) =>
+  useQuery({
+    queryKey: [REPORTS, 'case', id],
+    queryFn: ({ signal }) => apiGet<CaseContext>(`/reports/cases/${encodeURIComponent(id)}`, { history_limit: 20 }, signal),
+    meta: { label: `case ${id}` },
+  })
+
 // --- Classification -----------------------------------------------------------------------------
 
 export interface ClassifyComplaint {
@@ -71,6 +79,7 @@ export interface ClassifyComplaint {
   source_system: string
   date_opened: string
   account_id: string
+  transferred_between_systems?: boolean
 }
 
 interface ProcessResponse {

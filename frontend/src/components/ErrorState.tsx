@@ -7,10 +7,13 @@ export default function ErrorState({
   title = "Couldn't load this",
   error,
   onRetry,
+  children,
 }: {
   title?: string
   error: unknown
   onRetry?: () => void
+  /** Replaces the default "change the filters" hint when a retry would not help, for example a link back. */
+  children?: React.ReactNode
 }) {
   const status = error instanceof ApiError && error.status ? `HTTP ${error.status}` : null
   return (
@@ -30,7 +33,7 @@ export default function ErrorState({
           </span>
         </Button>
       ) : (
-        <p className="text-sm text-gray-500">Change the filters or the sort above and it will load again.</p>
+        (children ?? <p className="text-sm text-gray-500">Change the filters or the sort above and it will load again.</p>)
       )}
     </div>
   )

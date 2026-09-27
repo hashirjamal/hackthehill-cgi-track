@@ -152,3 +152,84 @@ export interface ProfileRow {
   reopen_rate: number
   top_resolution: string
 }
+
+export interface CaseFlag {
+  name: string
+  source: string
+  effect: string
+  probability: number | null
+  reason: string
+}
+
+export interface CaseClassification {
+  classification_id: number
+  classifier_version: string
+  created_at: string
+  emergency: boolean
+  group_name: string | null
+  group_confidence: number | null
+  group_source: 'laya' | 'data' | null
+  laya_group: string | null
+  subcategory: string | null
+  subcategory_source: string | null
+  low_confidence: boolean
+  priority: Priority
+  base_priority: Priority
+  base_priority_source: string
+  routed_team: string
+  lane: 'emergency' | 'review' | 'quick_lane' | 'standard'
+  likely_cause: string | null
+  flags: CaseFlag[]
+}
+
+export interface MeterMonth {
+  month: string
+  estimated_read_rate: number
+  smart_meter_penetration: number
+  billing_exceptions_raised: number
+  billing_exceptions_per_1000: number
+}
+
+export interface ResolutionShare {
+  resolution_action: string
+  cases: number
+  share: number
+}
+
+export interface CaseProfile {
+  n: number
+  avg_days: number | null
+  info_only_share: number | null
+  transfer_rate: number | null
+  reopen_rate: number | null
+  breach_rate: number | null
+}
+
+export interface AccountCase {
+  complaint_id: string
+  date_opened: string
+  status: string
+  category: string
+  region: string
+  priority: Priority
+  resolution_action: string | null
+  days_to_close: number | null
+  reopened: boolean
+  complaint_seq: number
+  is_repeat: boolean
+  days_since_previous: number | null
+}
+
+/** GET /reports/cases/{id}: everything known about one complaint. */
+export interface CaseContext {
+  case: CaseRow
+  classification: CaseClassification | null
+  region_meter: MeterMonth[]
+  profile: (CaseProfile & { top_resolution: string }) | null
+  category_profile: CaseProfile | null
+  resolution_mix: ResolutionShare[]
+  account_complaints_total: number
+  account_history: AccountCase[]
+  drafts: { draft_id: number; status: string; body: string }[]
+  action_items: { action_id: number; description: string; status: string; rationale: string | null }[]
+}
