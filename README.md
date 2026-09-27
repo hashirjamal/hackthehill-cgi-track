@@ -59,8 +59,8 @@ curl -X POST localhost:8000/laya/predict -H 'content-type: application/json' -d 
 ## Complaint classification
 
 `POST /complaints/process` classifies complaints with Laya and stores the result in the `classifications` table
-(one current row per complaint, older rows kept as history). Today it runs the classification layer only; the
-domain AI agents will be called from the same endpoint later.
+(one current row per complaint, older rows kept as history). It then runs the matching domain AI agent - see
+"Domain AI agents" below.
 
 Rules and taxonomy: `app/classification/` (`taxonomy.py` groups, routes and Laya questions, `rules.py` priority
 and flag rules, `service.py` the pipeline). Thresholds are in `app/config.py` and can be set in `.env`
@@ -92,6 +92,24 @@ curl -X POST localhost:8000/complaints/process -H 'content-type: application/jso
 ```
 
 Tests (no model download needed): `pip install pytest && python -m pytest`.
+
+## Domain AI agents
+
+After classification, `POST /complaints/process` runs the matching domain agent (billing, metering,
+field services, customer support, general) to produce a draft reply (where one applies) and ranked
+action items, stored in `draft_responses` / `action_items`. Every run is logged to `agent_runs`,
+including failures - a failed agent run never blocks the batch; the complaint keeps its classification
+with no draft.
+
+By default it calls a local [Ollama](https://ollama.com) model with structured output (`OLLAMA_HOST`,
+default `http://localhost:11434`; `AGENT_MODEL`, default `gemma3` - pull whatever model you actually
+run with `ollama pull <model>` and set `AGENT_MODEL` to match). Set `AGENT_ENABLED=false` to use the
+template fallback instead (no LLM call at all - requirement N6's confidentiality fallback), which is
+also what the test suite uses so it never needs a running Ollama server.
+
+`app/agents/config.py`'s `AGENT_CONFIGS` holds each domain's instructions - a real but generic default
+today. That's the file to edit together to write the actual system-prompt wording; nothing else in
+`app/agents/` needs to change for that.
 
 ## Database setup (Tiger Data or any Postgres)
 

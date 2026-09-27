@@ -1,0 +1,97 @@
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.db import Base, get_db
+from app.laya_service import get_laya
+from app.main import app
+from app.models import ActionItem, AgentRun, DraftResponse
+
+
+class FakeLaya:
+    def predict(self, state, questions, model=None):
+        answers = {}
+        if "emergency" in questions:
+            return {"answers": {"emergency": {"noul": 0.0}}}
+        if "subcategory" in questions:
+            names = list(questions["subcategory"]["criteria"])
+            return {"answers": {"subcategory": {"probabilities": {n: 1.0 / len(names) for n in names}}}}
+        if "group" in questions:
+            names = list(questions["group"]["criteria"])
+            probs = {n: (0.9 if n == "Customer support" else 0.1 / (len(names) - 1)) for n in names}
+            answers["group"] = {"probabilities": probs}
+        if "urgency" in questions:
+            answers["urgency"] = {"score": 0.0, "probabilities": {"0": 1.0, "1": 0.0, "2": 0.0}}
+        for name in ("disconnection", "vulnerable", "escalation_threat", "repeat_contact", "high_bill", "info_only"):
+            answers[name] = {"noul": 0.0}
+        return {"answers": answers}
+
+
+def _client(monkeypatch):
+    # FastAPI runs this (sync) route in a worker thread. Plain "sqlite://" defaults to
+    # SingletonThreadPool, which hands that thread a *different*, empty in-memory database than
+    # the one created below - StaticPool + check_same_thread=False shares the one connection
+    # across threads (the pattern FastAPI's own testing docs use for this exact reason).
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+
+    # The dashboard views build_context reads (db/views.sql) only exist on Postgres; here they are
+    # empty stand-in tables shaped like the view output, following the precedent set in
+    # tests/test_agent_context.py and tests/test_agent_service.py.
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE v_case_profile (category TEXT, region TEXT, source_system TEXT, n INT, "
+            "avg_days REAL, info_only_share REAL, transfer_rate REAL, reopen_rate REAL, breach_rate REAL, "
+            "top_resolution TEXT)"
+        ))
+        conn.execute(text(
+            "CREATE TABLE v_account_history (account_id TEXT, complaint_id TEXT, date_opened TEXT, "
+            "category TEXT, status TEXT, resolution_action TEXT, days_to_close INT, is_repeat INT)"
+        ))
+        conn.execute(text(
+            "CREATE TABLE v_region_meter_complaints (region TEXT, month TEXT, estimated_read_rate REAL, "
+            "smart_meter_penetration REAL, billing_exceptions_per_1000 REAL, billing_metering_share REAL)"
+        ))
+
+    TestSession = sessionmaker(bind=engine)
+
+    def override_get_db():
+        db = TestSession()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    monkeypatch.setattr("app.complaint_routes.get_laya", lambda: FakeLaya())
+    monkeypatch.setattr("app.complaint_routes.settings.agent_enabled", False)
+    return TestClient(app), TestSession
+
+
+def test_process_complaint_creates_an_agent_run_and_a_draft(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    response = client.post("/complaints/process", json={
+        "as_of_date": "2026-09-30",
+        "complaints": [{"complaint_id": "NW-1", "category": "Service - poor communication", "account_id": "ACC-1"}],
+    })
+    assert response.status_code == 200
+
+    db = TestSession()
+    run = db.query(AgentRun).filter_by(complaint_id="NW-1").one()
+    assert run.status == "succeeded"
+    assert run.model == "template"
+    db.close()
+
+
+def test_a_batch_with_no_case_history_still_returns_200(monkeypatch):
+    # No matching v_case_profile/v_account_history/v_region_meter_complaints rows exist in this
+    # empty test DB at all - confirms the agent step degrades gracefully end-to-end (Review Focus).
+    client, _ = _client(monkeypatch)
+    response = client.post("/complaints/process", json={
+        "as_of_date": "2026-09-30",
+        "complaints": [{"complaint_id": "NW-2", "category": "Other", "account_id": "ACC-2"}],
+    })
+    assert response.status_code == 200
