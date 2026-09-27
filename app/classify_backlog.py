@@ -21,7 +21,8 @@ from app.classification.service import CLASSIFIER_VERSION, classify_complaint, d
 from app.config import settings
 from app.models import Classification, Complaint
 
-COMMIT_EVERY = 50
+COMMIT_EVERY = 10  # small batches: a dropped connection loses little, and the run resumes anyway
+MAX_RECONNECTS = 5
 
 
 def _pending(db: Session, limit: int | None) -> list[tuple[Complaint, Classification | None]]:
@@ -73,12 +74,23 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="only classify this many (for a trial run)")
     args = parser.parse_args()
 
+    from sqlalchemy.exc import OperationalError
+
     from app.db import SessionLocal
     from app.laya_service import get_laya
 
-    with SessionLocal() as db:
-        as_of = settings.as_of_date or db_as_of_date(db) or date.today()
-        classify_backlog(db, get_laya(), as_of, args.limit)
+    # A cloud database can drop a connection that sits idle while Laya works. The run is resumable,
+    # so on a dropped connection: open a new session and carry on from where it stopped.
+    for attempt in range(MAX_RECONNECTS + 1):
+        try:
+            with SessionLocal() as db:
+                as_of = settings.as_of_date or db_as_of_date(db) or date.today()
+                classify_backlog(db, get_laya(), as_of, args.limit)
+            return
+        except OperationalError as e:
+            if attempt == MAX_RECONNECTS:
+                raise
+            _log(f"Database connection dropped ({type(e.orig).__name__}); reconnecting and resuming...")
 
 
 if __name__ == "__main__":

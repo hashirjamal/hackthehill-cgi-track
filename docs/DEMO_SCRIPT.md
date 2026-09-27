@@ -56,7 +56,7 @@ only with a stated reason: vulnerable customer, safety risk or emergency), then 
 
 ## 4. The case: one click instead of five systems (2 min)
 
-Open **NW-124710** (or any of the showcase cases). In the **Case assistant** card:
+Open **NW-124710** (or any of the showcase cases). In the **Work this case** card:
 
 - **Action items** - each one names its source: *"Connect: reading received, not processed;
   billing: last 3 bills estimated"*.

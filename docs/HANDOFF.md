@@ -6,7 +6,7 @@ how our plan changed in [WHAT_CHANGED.txt](WHAT_CHANGED.txt); what's left in
 in [PRODUCTION_ARCHITECTURE.md](PRODUCTION_ARCHITECTURE.md). If anything here disagrees with git
 history, trust git.
 
-## What the product does (as built, 2026-09-27)
+## What the product does (as built, 2026-09-27; the app is called Trev in the UI)
 
 1. **Intake** - staff log a new complaint on the **New complaint** page (`POST /complaints/intake`):
    account, region, intake system, channel, and what the customer said. It is classified straight
@@ -17,7 +17,7 @@ history, trust git.
    `python -m app.classify_backlog`.
 3. **Worklist** - each team filters to its own section and sees its cases ranked: urgency, then days
    overdue.
-4. **Case assistant** - on a case, **Get context** (ranked action items, each citing its source)
+4. **Work this case** (the case page card) - **Get context** (ranked action items, each citing its source)
    and **Generate draft** (an editable reply; never sent by the app). Both check five simulated
    Northwind systems and show a **Systems checked** trace (raw record vs. what was taken from it).
    An **AI on / AI off** switch: AI on = local LLM (gemma4 via Ollama); AI off = fixed rules and
