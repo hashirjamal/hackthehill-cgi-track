@@ -3,6 +3,7 @@ uvicorn[standard]
 sqlalchemy>=2
 psycopg[binary]
 pydantic-settings
+ollama
 # Laya decision model. On a machine without a GPU, install CPU torch first to skip the CUDA download:
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 laya

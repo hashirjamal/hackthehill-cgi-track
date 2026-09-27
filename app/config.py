@@ -29,5 +29,11 @@ class Settings(BaseSettings):
     # app_settings.as_of_date in the database, then to today.
     as_of_date: date | None = None
 
+    # Domain AI agents (see app/agents/). agent_model is a placeholder tag until the team confirms
+    # which local Ollama model they're running (`ollama pull <model>` first).
+    agent_enabled: bool = True  # False uses the template fallback everywhere (requirement N6)
+    agent_model: str = "gemma3"
+    ollama_host: str = "http://localhost:11434"
+
 
 settings = Settings()
