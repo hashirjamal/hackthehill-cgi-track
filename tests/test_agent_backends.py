@@ -51,6 +51,18 @@ def test_template_backend_drafts_a_reply_for_mostly_information_only_categories(
     assert out.draft_reply is not None
 
 
+def test_template_backend_rationale_leaves_out_days_when_avg_days_is_unknown():
+    ctx = AgentContext(case_profile=CaseProfile(
+        category="Billing - disputed amount", region="Ashford", source_system="SYS-01",
+        n=3, avg_days=None, info_only_share=None, transfer_rate=None, reopen_rate=None,
+        breach_rate=None, top_resolution="Bill corrected",
+    ))
+    out = TemplateBackend().draft(AGENT_CONFIGS["billing"], ComplaintIn(text="x"), ctx)
+    rationale = out.action_items[0].rationale
+    assert "None" not in rationale
+    assert "Bill corrected" in rationale
+
+
 def test_ollama_backend_gives_its_default_client_a_timeout():
     # No request is made here; this only builds the real ollama.Client (an httpx client underneath).
     backend = OllamaBackend(model="gemma3", host="http://localhost:11434", timeout=12.5)

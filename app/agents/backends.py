@@ -38,8 +38,9 @@ class TemplateBackend:
         if profile is None:
             rationale = "No case history is available for this category, region and system."
         else:
+            days = f"usually take {profile.avg_days} days and " if profile.avg_days is not None else ""
             rationale = (
-                f"Similar cases usually take {profile.avg_days} days and are usually resolved as: "
+                f"Similar cases {days}are usually resolved as: "
                 f"{profile.top_resolution or 'no single common resolution'}."
             )
         action_items = [
