@@ -247,6 +247,30 @@ export interface CaseContext {
   resolution_mix: ResolutionShare[]
   account_complaints_total: number
   account_history: AccountCase[]
-  drafts: { draft_id: number; status: string; body: string }[]
-  action_items: { action_id: number; description: string; status: string; rationale: string | null }[]
+  drafts: { draft_id: number; run_id: number | null; status: string; body: string; created_at: string }[]
+  action_items: CaseActionItem[]
+}
+
+export interface CaseActionItem {
+  action_id: number
+  run_id: number | null
+  action_type: string
+  description: string
+  rationale: string | null
+  rank: number
+  status: string
+}
+
+/** POST /complaints/{id}/context and /draft. A run can fail without an HTTP error: check status. */
+export interface AgentRunResult {
+  run_id: number
+  status: 'succeeded' | 'failed'
+  error: string | null
+}
+export interface ContextResult extends AgentRunResult {
+  action_items: { action_id: number; action_type: string; description: string; rationale: string | null; rank: number }[]
+}
+export interface DraftResult extends AgentRunResult {
+  draft_id: number | null
+  body: string | null
 }

@@ -72,8 +72,10 @@ if there is any, and decides the urgency on its own: Northwind's historic priori
 point, because their way of deciding if something was urgent was not that good. Flags then raise the level, never
 lower it.
 
-If Laya's top group probability is under `GROUP_CONFIDENCE_THRESHOLD` (0.6), Laya's top pick is still used (we
-classify into our own categories, never Northwind's) and the case is marked `low_confidence` for staff to check.
+If Laya's top group probability is under `GROUP_CONFIDENCE_THRESHOLD` (0.6) and the complaint has customer text,
+Laya's top pick is still used and the case is marked `low_confidence` for staff to check. A CSV backlog row has no
+text, so its recorded category is the only description there is: when Laya is unsure on such a row, that category
+(mapped into our groups) is used instead (`group.source = "record"`).
 Northwind's priority is not shown to Laya at all. Deadline risk (open over 75% of our target) is a marker only: most
 of the backlog is past target, so letting it raise urgency would make everything P1.
 
@@ -129,7 +131,7 @@ additionally gets `search_knowledge_base`, a small static FAQ lookup for general
 questions ("how do I pay my bill?" and similar).
 
 By default it calls a local [Ollama](https://ollama.com) model (`OLLAMA_HOST`, default
-`http://localhost:11434`; `AGENT_MODEL`, default `gemma4` - **gemma3 has no tool-calling support in
+`http://localhost:11434`; `AGENT_MODEL`, default `gemma4:e4b-it-qat` (small gemma4, 6 GB, runs on the Mac GPU) - **gemma3 has no tool-calling support in
 Ollama at all**, gemma4 does; pull whatever you actually run with `ollama pull <model>` and set
 `AGENT_MODEL` to match; `AGENT_TIMEOUT_SECONDS`, default `30.0`, per call). Set `AGENT_ENABLED=false`
 to turn the agent off entirely (requirement N6's confidentiality fallback) - both endpoints record

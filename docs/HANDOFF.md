@@ -73,9 +73,9 @@ was fixed back when it still mattered; unaffected by any of this).
 
 - `AGENT_ENABLED` (default `true`) — `false` skips the LLM call entirely; both endpoints record a
   failed `AgentRun` (`error` explains why) and return one instead of calling anything (requirement N6).
-- `AGENT_MODEL` (default `gemma4`) — **gemma3 has no tool-calling support in Ollama at all**
+- `AGENT_MODEL` (default `gemma4:e4b-it-qat`) — **gemma3 has no tool-calling support in Ollama at all**
   (confirmed: no gemma3 tag, size, or variant supports it). gemma4 does, natively, ~86%
-  tool-calling accuracy per Google. `ollama pull gemma4` (or whatever size fits) before relying on this for real.
+  tool-calling accuracy per Google. `ollama pull gemma4:e4b-it-qat` before relying on this for real.
 - `OLLAMA_HOST` (default `http://localhost:11434`), `AGENT_TIMEOUT_SECONDS` (default `30.0`, per call).
 
 ### `chat_sessions`/`chat_messages` and the placeholder `staff` row are unused by this feature

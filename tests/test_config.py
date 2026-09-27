@@ -31,6 +31,6 @@ def test_agent_settings_have_working_defaults():
 
     s = Settings(database_url="sqlite:///./dev.db")
     assert s.agent_enabled is True
-    assert s.agent_model == "gemma4"
+    assert s.agent_model == "gemma4:e4b-it-qat"
     assert s.ollama_host == "http://localhost:11434"
     assert s.agent_timeout_seconds == 30.0

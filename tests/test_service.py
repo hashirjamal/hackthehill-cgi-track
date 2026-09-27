@@ -71,14 +71,33 @@ def test_multi_option_group_runs_stage_two():
     assert ["subcategory"] in fake.calls
 
 
-def test_low_confidence_still_uses_layas_top_pick_and_marks_it():
+def test_low_confidence_with_text_still_uses_layas_top_pick_and_marks_it():
     fake = FakeLaya(group="Customer support", group_p=0.4)  # Laya is unsure
-    result = run(fake, text=None, category="Service - missed appointment")
+    result = run(fake, text="nobody turned up", category="Service - missed appointment")
     assert result.low_confidence
-    assert (result.group.name, result.group.source) == ("Customer support", "laya")  # not the CSV category
+    assert (result.group.name, result.group.source) == ("Customer support", "laya")  # the text wins
     assert (result.subcategory.name, result.subcategory.source) == ("Service - poor communication", "laya")
     assert (result.routing.team, result.routing.lane) == ("Customer care leads", "standard")  # no review queue
     assert result.group_matches_data is False
+
+
+def test_low_confidence_without_text_uses_the_recorded_category():
+    # A CSV backlog row: no text, so the category is the only description. Laya is unsure and wrong.
+    fake = FakeLaya(group="General", group_p=0.28)
+    result = run(fake, text=None, category="Water - pressure or quality")
+    assert result.low_confidence
+    assert (result.group.name, result.group.source, result.group.laya_name) == ("Field services", "record", "General")
+    assert (result.subcategory.name, result.subcategory.source) == ("Water - pressure or quality", "record")
+    assert result.routing.team == "Water operations"
+    assert ["subcategory"] not in fake.calls
+    assert result.priority.base_source == "laya"  # urgency is still Laya's
+
+
+def test_confident_laya_without_text_is_not_replaced_by_the_recorded_category():
+    fake = FakeLaya(group="Field services", group_p=0.9, subcategory="Water - pressure or quality")
+    result = run(fake, text=None, category="Service - missed appointment")
+    assert (result.group.source, result.subcategory.source) == ("laya", "laya")
+    assert result.routing.team == "Water operations"
 
 
 def test_low_confidence_multi_option_group_still_runs_stage_two():

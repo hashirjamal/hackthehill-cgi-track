@@ -1,0 +1,48 @@
+WHAT CHANGED FROM OUR ORIGINAL PLAN
+===================================
+
+Our first assumption was wrong
+------------------------------
+We assumed a separate data team prepared and organised the complaint data before
+staff worked on it. There isn't one. The same people who resolve complaints also
+have to dig through Northwind's systems and piece the information together
+themselves.
+
+Today, one complaint means visiting every system by hand
+--------------------------------------------------------
+Each system holds a different piece of the picture:
+
+  - Helix has the account summary and customer context for 1.8 million accounts.
+  - Aurora Billing has only the billing information.
+  - The other systems hold call notes, case history and customer messages.
+
+Staff go into each system one by one, copy what they need, and re-enter it into
+their main platform before they can even start fixing the problem.
+
+Our new approach removes that manual search
+-------------------------------------------
+1. One simple intake form.
+   When a complaint comes in by phone or email, the staff member records only
+   what they have at that moment: what the customer said, in plain language,
+   plus their account number. No searching, no system hopping.
+
+2. Laya classifies it instantly.
+   Laya reads the plain-language text and sorts the complaint into the right
+   category and urgency level.
+
+3. The right team sees it, ranked.
+   Each team (for example Billing) opens the dashboard, filters to its own
+   section, and sees its complaints ranked by urgency, so the most urgent cases
+   are handled first.
+
+4. An AI agent gathers the information.
+   Instead of a person searching every system, a local AI agent has tools that
+   connect to each one: Helix, Aurora Billing, the call centre system, the case
+   system and the customer portal. It pulls the relevant data, makes sense of it,
+   and gives the staff member clear next steps and a draft reply. For the demo
+   we simulate these systems with realistic data.
+
+The result
+----------
+Staff spend their time fixing the complaint, not hunting for information across
+five systems.

@@ -57,7 +57,7 @@ class ProcessRequest(BaseModel):
 
 class GroupOut(BaseModel):
     name: str  # the group used for routing
-    source: str  # always "laya" now; "data" appears only on classifications stored before v5
+    source: str  # "laya", or "record" when Laya was unsure on a row with no text ("data" before v5)
     laya_name: str  # Laya's own pick, kept for comparison
     confidence: float  # Laya's top stage 1 probability
     probabilities: dict[str, float]
@@ -65,7 +65,7 @@ class GroupOut(BaseModel):
 
 class SubcategoryOut(BaseModel):
     name: str  # a Northwind data category
-    source: str  # always "laya" now; "data" appears only on classifications stored before v5
+    source: str  # "laya" or "record" (see GroupOut.source)
     confidence: float | None  # None when the group has only one subcategory, or the data was used
 
 

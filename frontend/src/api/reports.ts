@@ -1,9 +1,12 @@
 /** Hooks for the reporting API (GET /reports/...) and the classification call. One hook for each endpoint. */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toastLoading, toastSuccess } from '../lib/notify'
+import { toastLoading, toastProblem, toastSuccess } from '../lib/notify'
 import type {
   AccountHistoryRow,
   AgentResultRow,
+  AgentRunResult,
+  ContextResult,
+  DraftResult,
   BreakdownRow,
   CaseContext,
   CaseRow,
@@ -184,3 +187,26 @@ export function useIntake() {
     },
   })
 }
+
+// --- AI agent buttons on a case -----------------------------------------------------------------
+
+const AGENT_TIMEOUT_MS = 5 * 60_000 // a local model reading several tools can take a while
+
+/** One of the two buttons. A run that fails (e.g. AI switched off) is a normal answer with status "failed". */
+function useAgentRun<T extends AgentRunResult>(id: string, action: 'context' | 'draft', label: string) {
+  const queryClient = useQueryClient()
+  const toastId = `agent-${action}-${id}`
+  return useMutation({
+    mutationFn: () => apiPost<T>(`/complaints/${encodeURIComponent(id)}/${action}`, undefined, { timeoutMs: AGENT_TIMEOUT_MS }),
+    meta: { errorTitle: `Couldn't ${label.toLowerCase()}`, toastId },
+    onMutate: () => toastLoading(`${label}…`, 'The local AI is reading the case. This can take up to a minute.', toastId),
+    onSuccess: (r) => {
+      if (r.status === 'succeeded') toastSuccess(`${label}: done`, undefined, toastId)
+      else toastProblem(`${label}: no result`, r.error ?? 'The AI did not finish.', toastId)
+      void queryClient.invalidateQueries({ queryKey: [REPORTS, 'case', id] })
+    },
+  })
+}
+
+export const useGetContext = (id: string) => useAgentRun<ContextResult>(id, 'context', 'Get context')
+export const useGenerateDraft = (id: string) => useAgentRun<DraftResult>(id, 'draft', 'Generate draft')

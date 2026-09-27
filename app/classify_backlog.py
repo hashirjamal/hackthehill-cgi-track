@@ -38,7 +38,11 @@ def _pending(db: Session, limit: int | None) -> list[tuple[Complaint, Classifica
     return pending[:limit] if limit else pending
 
 
-def classify_backlog(db: Session, laya: Any, as_of: date, limit: int | None = None, log=print) -> int:
+def _log(message: str) -> None:
+    print(message, flush=True)  # flushed, so progress shows up when the output goes to a file
+
+
+def classify_backlog(db: Session, laya: Any, as_of: date, limit: int | None = None, log=_log) -> int:
     """Classify every open complaint that is not on the current classifier yet. Returns how many."""
     pending = _pending(db, limit)
     log(f"{len(pending)} open complaints to classify (as of {as_of})")

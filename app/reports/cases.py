@@ -224,8 +224,8 @@ def case_context(
     )
     actions = _rows(
         db,
-        """SELECT action_id, action_type, description, rationale, rank, status, assigned_team, due_date
-           FROM action_items WHERE complaint_id = :id ORDER BY rank, action_id""",
+        """SELECT action_id, run_id, action_type, description, rationale, rank, status, assigned_team, due_date
+           FROM action_items WHERE complaint_id = :id ORDER BY run_id DESC NULLS LAST, rank, action_id""",
         id=complaint_id,
     )
     return {

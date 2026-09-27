@@ -1,9 +1,10 @@
-import { ArrowLeft, Bot, Loader2, Sparkles } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { useCaseContext, useClassify } from '../api/reports'
 import Badge, { LaneBadge, PriorityBadge } from '../components/Badge'
+import AgentPanel from '../components/AgentPanel'
 import { ShareBar } from '../components/BarChart'
 import Card, { CardTitle } from '../components/Card'
 import { Button } from '../components/Controls'
@@ -130,7 +131,7 @@ function Body({ data }: { data: CaseContext }) {
                   <div className="mt-0.5 text-xs text-gray-500">
                     {cl.group_source === 'laya'
                       ? `From Laya, ${pct(cl.group_confidence ?? 0)} sure`
-                      : `Laya was ${pct(cl.group_confidence ?? 0)} sure of ${cl.laya_group}, so the data category was used`}
+                      : `Laya was only ${pct(cl.group_confidence ?? 0)} sure (${cl.laya_group}), so the recorded category was used`}
                   </div>
                 </Fact>
                 <Fact label="Subcategory">{cl.subcategory ?? '-'}</Fact>
@@ -181,31 +182,7 @@ function Body({ data }: { data: CaseContext }) {
       </div>
 
       <div className="flex flex-col gap-4">
-        <Card>
-          <CardTitle title="Draft reply and actions" hint="From the AI agent for this group" />
-          {data.drafts.length === 0 && data.action_items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-xl bg-gray-100 px-4 py-8 text-center">
-              <Bot className="h-6 w-6 text-brand" />
-              <p className="text-sm font-medium text-gray-700">No draft yet</p>
-              <p className="text-sm text-gray-500">The AI agents are not connected yet. Drafts and action items will show here for staff to approve.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3 text-sm text-gray-700">
-              {data.drafts.map((d) => (
-                <div key={d.draft_id} className="rounded-xl bg-gray-100 p-3">
-                  <Badge tone="brand">{humanize(d.status)}</Badge>
-                  <p className="mt-2 whitespace-pre-wrap">{d.body}</p>
-                </div>
-              ))}
-              {data.action_items.map((a) => (
-                <div key={a.action_id} className="flex items-start justify-between gap-2">
-                  <span>{a.description}</span>
-                  <Badge tone="gray">{humanize(a.status)}</Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        <AgentPanel data={data} />
 
         <Card>
           <CardTitle title="Region meter picture" hint={`${c.region}, estimated-read rate by month`} />

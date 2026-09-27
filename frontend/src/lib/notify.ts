@@ -23,3 +23,8 @@ export function toastLoading(title: string, description: string | undefined, id:
 export function toastInfo(title: string, description?: string) {
   return toast.info(title, { description })
 }
+
+/** An error toast with a message we already have in plain words (not from a failed request). */
+export function toastProblem(title: string, description: string, id?: string | number) {
+  return toast.error(title, { description, id, duration: 8000 })
+}

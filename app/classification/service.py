@@ -3,10 +3,10 @@
 Order: emergency screen, then stage 1 (group, urgency, text flags), then stage 2 (subcategory,
 only for groups with several options), then the data flags and the priority rules.
 Laya decides both the group and the urgency. Northwind's own labels are not trusted: their priority
-is never shown to Laya or used, and their category (the only description a CSV row has, since the
-backlog has no text) is shown to Laya as evidence but never overrides its answer - it is only
-compared with it afterwards. When Laya is unsure (top group probability under the threshold) its
-top pick is still used, and the case is marked low_confidence so staff can check it.
+is never shown to Laya or used. When a complaint has customer text, Laya's group always wins; when
+Laya is unsure (top group probability under the threshold) its pick is still used and the case is
+marked low_confidence. A CSV backlog row has no text, so its recorded category is the only
+description there is: it is shown to Laya, and used instead of Laya's pick only when Laya is unsure.
 """
 from datetime import date
 from typing import Any
@@ -36,7 +36,7 @@ from app.classification.taxonomy import (
 from app.config import Settings, settings
 from app.models import Classification
 
-CLASSIFIER_VERSION = "laya-two-stage-v6"
+CLASSIFIER_VERSION = "laya-two-stage-v7"
 
 
 def render_state(complaint: ComplaintIn) -> str:
@@ -99,8 +99,15 @@ def classify_complaint(
     urgency_score = s1["urgency"]["score"]
     text_probs = {name: s1[name]["noul"] for name in TEXT_FLAG_QUESTIONS}
 
+    # A backlog row from the CSV has no text: its recorded category is the only description of the
+    # complaint there is. When Laya is unsure on such a row, that category (mapped into our groups)
+    # is the better evidence. A complaint with text always keeps Laya's pick.
+    used_group, group_source = group_name, "laya"
     options = GROUPS[group_name]["subcategories"]
-    if len(options) == 1:
+    if low_confidence and not complaint.text and complaint.category:
+        used_group, group_source = CATEGORY_TO_GROUP[complaint.category], "record"
+        subcategory = SubcategoryOut(name=complaint.category, source="record", confidence=None)
+    elif len(options) == 1:
         subcategory = SubcategoryOut(name=options[0], source="laya", confidence=None)
     else:
         raw["stage2"] = laya.predict(state, {"subcategory": stage2_question(group_name)})["answers"]
@@ -135,8 +142,8 @@ def classify_complaint(
         emergency=False,
         emergency_probability=emergency_p,
         group=GroupOut(
-            name=group_name,
-            source="laya",
+            name=used_group,
+            source=group_source,
             laya_name=group_name,
             confidence=group_conf,
             probabilities=group_probs,
@@ -161,7 +168,7 @@ def classify_complaint(
         data_category=data_category,
         group_matches_data=(group_name == CATEGORY_TO_GROUP[data_category]) if data_category else None,
         subcategory_matches_data=(
-            (subcategory.name == data_category) if data_category else None
+            (subcategory.name == data_category) if data_category and subcategory.source == "laya" else None
         ),
     ), raw
 
