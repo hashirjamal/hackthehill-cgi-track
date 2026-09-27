@@ -1184,6 +1184,8 @@ class FakeLaya:
             names = list(questions["group"]["criteria"])
             probs = {n: (0.9 if n == "Customer support" else 0.1 / (len(names) - 1)) for n in names}
             answers["group"] = {"probabilities": probs}
+        if "urgency" in questions:
+            answers["urgency"] = {"score": 0.0, "probabilities": {"0": 1.0, "1": 0.0, "2": 0.0}}
         for name in ("disconnection", "vulnerable", "escalation_threat", "repeat_contact", "high_bill", "info_only"):
             answers[name] = {"noul": 0.0}
         return {"answers": answers}
