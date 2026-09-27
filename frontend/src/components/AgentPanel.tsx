@@ -4,6 +4,7 @@ import { useGenerateDraft, useGetContext } from '../api/reports'
 import { humanize, shortDate } from '../lib/format'
 import type { CaseContext } from '../types'
 import Card, { CardTitle } from './Card'
+import SystemsChecked from './SystemsChecked'
 import { Button } from './Controls'
 
 /** The two AI buttons on a case. Nothing runs until staff click, and nothing is ever sent or changed:
@@ -18,13 +19,14 @@ export default function AgentPanel({ data }: { data: CaseContext }) {
   const latestRun = data.action_items.reduce<number | null>((max, a) => (a.run_id !== null && (max === null || a.run_id > max) ? a.run_id : max), null)
   const actions = data.action_items.filter((a) => a.run_id === latestRun)
   const latestDraft = data.drafts[0]
+  const trace = (runId: number | null | undefined) => (runId != null ? (data.systems_checked[String(runId)] ?? []) : [])
 
   const contextError = context.data?.status === 'failed' ? context.data.error : null
   const draftError = draft.data?.status === 'failed' ? draft.data.error : null
 
   return (
     <Card>
-      <CardTitle title="AI assistant" hint="Runs on our own machine. It suggests; staff decide and act." />
+      <CardTitle title="AI assistant" hint="Checks Northwind's systems for you. Runs on our own machine; it suggests, staff decide and act." />
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => context.mutate()} disabled={busy}>
           <span className="inline-flex items-center gap-2">
@@ -59,13 +61,17 @@ export default function AgentPanel({ data }: { data: CaseContext }) {
             ))}
           </ol>
         )}
+        <SystemsChecked calls={trace(latestRun)} />
       </section>
 
       <section className="mt-6">
         <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">Draft reply</h3>
         {draftError && <p className="mt-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">{draftError}</p>}
         {latestDraft ? (
-          <DraftEditor key={latestDraft.draft_id} body={latestDraft.body} created={latestDraft.created_at} />
+          <>
+            <DraftEditor key={latestDraft.draft_id} body={latestDraft.body} created={latestDraft.created_at} />
+            <SystemsChecked calls={trace(latestDraft.run_id)} />
+          </>
         ) : (
           <p className="mt-2 text-sm text-gray-500">Click Generate draft for a reply to the customer that you can edit, copy and send yourself.</p>
         )}

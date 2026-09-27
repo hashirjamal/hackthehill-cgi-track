@@ -141,6 +141,8 @@ class CaseContext(BaseModel):
     account_history: list[dict[str, Any]]  # oldest first, up to history_limit
     drafts: list[dict[str, Any]]
     action_items: list[dict[str, Any]]
+    # Northwind systems the agent checked, for the latest "Get context" and "Generate draft" runs, by run_id.
+    systems_checked: dict[int, list[dict[str, Any]]] = {}
 
 
 def _rows(db: Session, sql: str, **params) -> list[dict[str, Any]]:
@@ -228,7 +230,11 @@ def case_context(
            FROM action_items WHERE complaint_id = :id ORDER BY run_id DESC NULLS LAST, rank, action_id""",
         id=complaint_id,
     )
+    run_ids = {r["run_id"] for r in (actions[:1] + drafts[:1]) if r.get("run_id") is not None}
+    runs = _rows(db, "SELECT run_id, context FROM agent_runs WHERE run_id = ANY(:ids)", ids=list(run_ids)) if run_ids else []
+    systems_checked = {r["run_id"]: (r["context"] or {}).get("systems_checked", []) for r in runs}
     return {
+        "systems_checked": systems_checked,
         "case": case,
         "classification": classification[0] if classification else None,
         "region_meter": region_meter,

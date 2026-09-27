@@ -36,5 +36,14 @@ class Settings(BaseSettings):
     ollama_host: str = "http://localhost:11434"
     agent_timeout_seconds: float = 30.0  # per Ollama call
 
+    # Northwind's systems, as the agent tools reach them (the simulated servers in northwind_systems/
+    # for the demo; in production, an internal integration gateway in front of the real ones).
+    helix_url: str = "http://localhost:9005"
+    aurora_url: str = "http://localhost:9001"
+    casetrack_url: str = "http://localhost:9002"
+    callcentre_url: str = "http://localhost:9003"
+    connect_url: str = "http://localhost:9004"
+    systems_timeout_seconds: float = 5.0
+
 
 settings = Settings()

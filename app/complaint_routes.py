@@ -16,6 +16,7 @@ from app.agents.runner import (
     run_agent_once,
 )
 from app.agents.schemas import ActionItemOut, ContextResponse, DraftOut
+from app.agents.systems import SystemsClient, build_system_tools
 from app.agents.tools import build_action_item_tool, build_context_tools_for, build_draft_tool
 from app.classification.schemas import ComplaintIn, IntakeRequest, IntakeResponse, ProcessRequest, ProcessResponse
 from app.classification.service import classify_complaint, db_as_of_date, save_classification
@@ -169,11 +170,14 @@ def get_context(complaint_id: str, db: Session = Depends(get_db)):
     # safe for concurrent use across threads (confirmed live: reproduced "Session is already
     # flushing" without this).
     lock = threading.Lock()
+    trace: list[dict] = []  # every Northwind system call the agent makes, for "Systems checked"
+    system_tools = build_system_tools(complaint, SystemsClient(trace))
     tools = [
-        *build_context_tools_for(agent_id, db, complaint, as_of, lock, customer_text),
+        *build_context_tools_for(agent_id, db, complaint, as_of, lock, customer_text, system_tools),
         build_action_item_tool(db, complaint, run.run_id, lock),
     ]
     _run_and_finish(run, model, cfg, tools, GET_CONTEXT_INSTRUCTION)
+    run.context = {"systems_checked": trace}
 
     items = db.query(ActionItem).filter_by(run_id=run.run_id).order_by(ActionItem.rank).all()
     if run.status == "succeeded" and not items:
@@ -192,6 +196,7 @@ def get_context(complaint_id: str, db: Session = Depends(get_db)):
             )
             for i in items
         ],
+        systems_checked=trace,
     )
 
 
@@ -207,11 +212,14 @@ def generate_draft(complaint_id: str, db: Session = Depends(get_db)):
     model = _build_agent_model()
     run = _start_run(db, complaint_id, agent_id, model)
     lock = threading.Lock()  # see get_context() above for why this is needed
+    trace: list[dict] = []  # every Northwind system call the agent makes, for "Systems checked"
+    system_tools = build_system_tools(complaint, SystemsClient(trace))
     tools = [
-        *build_context_tools_for(agent_id, db, complaint, as_of, lock, customer_text),
+        *build_context_tools_for(agent_id, db, complaint, as_of, lock, customer_text, system_tools),
         build_draft_tool(db, complaint, run.run_id, lock),
     ]
     _run_and_finish(run, model, cfg, tools, GENERATE_DRAFT_INSTRUCTION)
+    run.context = {"systems_checked": trace}
 
     draft = db.query(DraftResponse).filter_by(run_id=run.run_id).order_by(DraftResponse.draft_id.desc()).first()
     if run.status == "succeeded" and draft is None:
@@ -225,4 +233,5 @@ def generate_draft(complaint_id: str, db: Session = Depends(get_db)):
         error=run.error,
         draft_id=draft.draft_id if draft else None,
         body=draft.body if draft else None,
+        systems_checked=trace,
     )

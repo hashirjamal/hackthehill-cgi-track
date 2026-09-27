@@ -142,6 +142,33 @@ it never needs a running Ollama server.
 default today. That's the file to edit together to write the actual system-prompt wording; a new
 domain-specific tool is a new entry in `app/agents/tools.py`'s `build_context_tools_for`.
 
+## Simulated Northwind systems (what the agent's tools call)
+
+Northwind's real systems aren't available to us, so `northwind_systems/` runs believable stand-ins:
+five separate servers, each with its own data, its own customer ids and its own API style, plus a
+console page in its era's look. **All data there is simulated** (generated from the challenge's
+complaint records; names, amounts and notes are invented).
+
+| System | Port | Holds | Style |
+|---|---|---|---|
+| Aurora Billing (SYS-01) | 9001 | bills for Barrowdale and Dunmoor | mainframe: upper case, pence, `YYYYMMDD`, `E`/`A`/`C` read codes |
+| CaseTrack (SYS-04) | 9002 | cases and notes; transferred cases lose their history | enterprise REST |
+| CallCentre One (SYS-05) | 9003 | calls, wrap-up codes, agents' shorthand notes | SaaS REST |
+| Northwind Connect (SYS-03) | 9004 | customers' web messages, submitted meter readings | modern REST |
+| Helix CIS (SYS-02) | 9005 | customer records for everyone + cross-system ids; bills for the other regions | vendor REST |
+
+```bash
+python -m northwind_systems.generate   # build the data (northwind_systems/data/, git-ignored)
+./northwind_systems/run.sh             # start all five; open http://localhost:9001 etc. for the consoles
+```
+
+The agent's tools (`app/agents/systems.py`) look the customer up in Helix first (it holds the ids
+for the other systems), pick Aurora or Helix for billing by region in code, and turn each raw
+response into a short summary for the model. Every call is recorded and shown on the case page as
+"Systems checked": the raw record next to what the AI took from it. A system that is down becomes a
+plain sentence ("CaseTrack did not respond"), not a failed run. URLs are settings (`HELIX_URL`,
+`AURORA_URL`, ...); in production they would point at an internal integration gateway.
+
 ## Database setup (Tiger Data or any Postgres)
 
 `DATABASE_URL` needs the password in it (Tiger Data's connection string leaves it out). `postgres://` and

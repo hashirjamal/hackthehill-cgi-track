@@ -176,11 +176,23 @@ def build_context_tools_for(
     as_of: date,
     lock: threading.Lock,
     customer_text: str | None = None,
+    system_tools: dict | None = None,
 ) -> list:
-    """Context tools for the given domain. general additionally gets search_knowledge_base -
-    the one genuinely domain-specific real data source available (a static FAQ). Every other
-    domain, and an unclassified complaint (agent_id is None), gets the shared set only."""
-    tools = build_context_tools(db, complaint, as_of, lock, customer_text)
+    """Context tools for the given domain.
+
+    Without system_tools: the shared set from our own database (plus the knowledge base for
+    general). With system_tools (app/agents/systems.py): the case itself and similar-case history
+    from our database, plus the Northwind systems that domain needs (SYSTEM_TOOLS_BY_DOMAIN) -
+    the account's other complaints are then covered by CaseTrack and CallCentre One."""
+    shared = build_context_tools(db, complaint, as_of, lock, customer_text)
+    if system_tools is None:
+        tools = shared
+    else:
+        from app.agents.systems import SYSTEM_TOOLS_BY_DOMAIN
+
+        keep = {"read_case", "get_case_profile"} | ({"get_region_meter_picture"} if agent_id == "metering" else set())
+        tools = [t for t in shared if t.name in keep]
+        tools += [system_tools[name] for name in SYSTEM_TOOLS_BY_DOMAIN.get(agent_id, SYSTEM_TOOLS_BY_DOMAIN[None])]
     if agent_id == "general":
         tools = [*tools, _knowledge_base_tool()]
     return tools

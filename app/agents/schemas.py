@@ -10,11 +10,22 @@ class ActionItemOut(BaseModel):
     rank: int
 
 
+class SystemCall(BaseModel):
+    """One request the agent made to a Northwind system, for the "Systems checked" trace."""
+
+    system: str  # helix, aurora, casetrack, callcentre, connect
+    system_name: str
+    request: str
+    raw: str | None  # the system's raw response (None when it failed or had no record)
+    summary: str | None  # what the agent was told
+
+
 class ContextResponse(BaseModel):
     run_id: int
     status: str  # "succeeded" or "failed"
     action_items: list[ActionItemOut]
     error: str | None = None
+    systems_checked: list[SystemCall] = []
 
 
 class DraftOut(BaseModel):
@@ -23,3 +34,4 @@ class DraftOut(BaseModel):
     draft_id: int | None = None
     body: str | None = None
     error: str | None = None
+    systems_checked: list[SystemCall] = []

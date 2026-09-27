@@ -5,7 +5,7 @@ Three voices, on purpose:
 - call-centre agents (CallCentre One wrap-up notes): terse shorthand typed during a call
 - case handlers (CaseTrack notes): semi-formal, often written days apart by different people
 
-Placeholders: {amount} {usual} {months} {date} {reading} {days}.
+Placeholders: {amount} {usual} {afford} {months} {date} {reading} {days}.
 """
 
 CUSTOMER_MESSAGES: dict[str, list[str]] = {
@@ -85,6 +85,7 @@ CALL_NOTES: dict[str, dict[str, list[str]]] = {
             "cust chasing re-bill, nothing recvd. 2nd call re same. apologised, re-escalated. cb req",
             "3rd contact re est bill. cust threatening to cancel DD. adv case still with billing. no ETA avail",
             "cust called back - says rdg submitted but new bill STILL est. couldnt see rdg in our sys. referred again",
+            "cust asking why DD still taking est amt while disputed. adv cant amend DD from CRM - raised w billing",
         ],
     },
     "Billing - disputed amount": {
@@ -97,6 +98,8 @@ CALL_NOTES: dict[str, dict[str, list[str]]] = {
         "chase": [
             "cust chasing dispute outcome. no update on case. apologised. cust asked for manager - none avail, cb req",
             "2nd call re disputed bill. cust says DD still taking full amt. adv DD can be paused - not done by prev agent",
+            "cust chasing itemised bill - still not sent. cust says will go to ombudsman. escalated to TL",
+            "cust rang for update. billing say review 'in progress'. no date. cust v frustrated",
         ],
     },
     "Metering - no read taken": {
@@ -107,17 +110,22 @@ CALL_NOTES: dict[str, dict[str, list[str]]] = {
         ],
         "chase": [
             "cust chasing meter visit - no confirmation recvd. couldnt see booking in our sys. rebooked AGAIN",
+            "cust says 2nd visit also missed. no card left. cust asked if they can send photo instead - adv use app",
+            "cust chasing revised bill after rd. no re-bill yet. referred to billing",
         ],
     },
     "Payment - plan or arrears": {
         "first": [
-            "cust in arrears {amount}, reduced hrs at work. discussed PP - cust can afford approx {usual}/mth. "
+            "cust in arrears {amount}, reduced hrs at work. discussed PP - cust can afford approx {afford}/mth. "
             "sent to collections for approval. VULN? - young child mentioned",
             "cust recvd final notice {amount}. says DD cancelled w/o notice. put 14 day hold on recovery. PP req",
             "PP DISP - cust says amt taken > agreed. checked - PP not applied correctly. raised to collections URGENT",
         ],
         "chase": [
             "cust chasing PP confirmation. still showing full arrears. cust v distressed re disconnection. escalated",
+            "cust rang re letter threatening recovery action despite hold. apologised. confirmed hold still on (?)",
+            "cust asking if PP approved - collections no response on case. cust says cant afford full amt this mth",
+            "cust in tears on call, worried re cutoff w young child. escalated URGENT to collections TL. cb req today",
         ],
     },
     "Supply - interruption": {
@@ -127,6 +135,7 @@ CALL_NOTES: dict[str, dict[str, list[str]]] = {
         ],
         "chase": [
             "cust chasing outage cause. network have no update on case. cust asked about compensation",
+            "another outage overnight per cust. still no fault ref from network. cust wants engineer out",
         ],
     },
     "Water - pressure or quality": {
@@ -136,6 +145,7 @@ CALL_NOTES: dict[str, dict[str, list[str]]] = {
         ],
         "chase": [
             "cust chasing water quality issue. still discoloured. no update from water ops on case",
+            "cust says neighbours same issue. asked if water safe for baby formula - adv boil + use bottled til cleared",
         ],
     },
     "Service - missed appointment": {
@@ -145,6 +155,7 @@ CALL_NOTES: dict[str, dict[str, list[str]]] = {
         ],
         "chase": [
             "cust chasing comp for missed appt. no record of claim on case. raised again",
+            "rebooked appt ALSO missed per cust. v angry. escalated to field TL",
         ],
     },
     "Service - poor communication": {
@@ -155,6 +166,7 @@ CALL_NOTES: dict[str, dict[str, list[str]]] = {
         ],
         "chase": [
             "cust called again, no cb recvd AGAIN. v angry. says will go to regulator. escalated to TL",
+            "cust asking for named contact - none assigned on case. apologised. cb req",
         ],
     },
     "Other": {
