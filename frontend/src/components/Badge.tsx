@@ -4,7 +4,7 @@ import type { Priority } from '../types'
 
 // Soft tinted chip with a small dot: readable at a glance, no borders.
 const tones = {
-  brand: { chip: 'bg-brand-soft text-brand', dot: 'bg-brand' },
+  brand: { chip: 'bg-brand-soft text-brand-dark', dot: 'bg-brand' },
   gray: { chip: 'bg-gray-100 text-gray-700', dot: 'bg-gray-400' },
   red: { chip: 'bg-red-50 text-red-700', dot: 'bg-red-500' },
   amber: { chip: 'bg-amber-50 text-amber-800', dot: 'bg-amber-500' },
@@ -27,8 +27,8 @@ export default function Badge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full py-1 text-xs leading-none font-semibold whitespace-nowrap',
-        dot ? 'pr-3 pl-2.5' : 'px-3',
+        'inline-flex items-center gap-1.5 rounded-sm py-[3px] text-xs leading-none font-medium whitespace-nowrap',
+        dot ? 'pr-2 pl-1.5' : 'px-2',
         t.chip,
       )}
     >

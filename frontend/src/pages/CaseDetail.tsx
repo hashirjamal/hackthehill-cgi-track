@@ -10,19 +10,67 @@ import Card, { CardTitle } from '../components/Card'
 import { Button } from '../components/Controls'
 import DataTable, { type Column } from '../components/DataTable'
 import ErrorState from '../components/ErrorState'
-import PageHeader from '../components/PageHeader'
 import Skeleton from '../components/Skeleton'
+import { cn } from '../lib/cn'
 import { humanize, num, pct, shortDate } from '../lib/format'
 import type { AccountCase, CaseContext } from '../types'
 
 const monthName = (m: string) => new Date(`${m}-01T00:00:00`).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
 
+/** One label/value row in the side rail: label left, value right, a hairline between rows. */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
-      <dt className="text-xs font-medium text-gray-500">{label}</dt>
-      <dd className="mt-0.5 text-sm text-gray-800">{children}</dd>
+    <div className="flex items-baseline justify-between gap-4 border-b border-line/70 py-2 last:border-0">
+      <dt className="shrink-0 text-xs text-gray-500">{label}</dt>
+      <dd className="min-w-0 text-right text-sm text-ink">{children}</dd>
     </div>
+  )
+}
+
+const statusTone = (status: string) => (status === 'Open' ? 'brand' : status === 'Closed' ? 'gray' : 'amber')
+
+/** The top of the ticket: what it is, who has it, and how long it has been waiting. */
+function CaseHeader({ data }: { data: CaseContext }) {
+  const c = data.case
+  const cl = data.classification
+  const open = c.status === 'Open'
+  const over = c.days_overdue > 0
+  return (
+    <section className="grid gap-4 rounded-md border border-line bg-card p-4 md:grid-cols-[1fr_auto]">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="num text-sm text-gray-500">{c.complaint_id}</span>
+          <Badge tone={statusTone(c.status)}>{c.status}</Badge>
+          <PriorityBadge priority={cl?.priority ?? c.priority} />
+          {cl && <LaneBadge lane={cl.lane} />}
+          {c.transferred_between_systems && <Badge tone="amber">Transferred</Badge>}
+        </div>
+        <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-ink">{cl?.subcategory ?? c.category}</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          <Link to={`/accounts?account_id=${encodeURIComponent(c.account_id)}`} className="num text-brand hover:underline">
+            {c.account_id}
+          </Link>
+          {' · '}
+          {c.region} · {c.channel} · {c.source_system} · opened {shortDate(c.date_opened)}
+        </p>
+      </div>
+      <div className="flex gap-6 border-line md:border-l md:pl-6">
+        <div>
+          <p className="text-[11px] tracking-wider text-gray-500 uppercase">Assigned to</p>
+          <p className="mt-1 text-sm font-medium text-ink">{cl?.routed_team ?? 'Not routed yet'}</p>
+        </div>
+        <div>
+          <p className="text-[11px] tracking-wider text-gray-500 uppercase">{open ? 'Days open' : 'Closed in'}</p>
+          <p className={cn('num mt-0.5 text-2xl', c.breached_live ? 'text-red-700' : 'text-ink')}>
+            {c.days_open}
+            <span className="text-sm text-gray-400">/{c.sla_days}d</span>
+          </p>
+          <p className={cn('text-xs', over ? 'text-red-700' : 'text-gray-500')}>
+            {over ? `${c.days_overdue} days over` : `${Math.abs(c.days_overdue)} days left`}
+          </p>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -31,7 +79,7 @@ const historyColumns: Column<AccountCase>[] = [
     key: 'complaint_id',
     header: 'Complaint',
     cell: (r) => (
-      <Link to={`/cases/${r.complaint_id}`} className="font-medium text-brand hover:underline">
+      <Link to={`/cases/${r.complaint_id}`} className="num text-brand hover:underline">
         {r.complaint_id}
       </Link>
     ),
@@ -45,8 +93,8 @@ const historyColumns: Column<AccountCase>[] = [
 /** The page's shape while it loads, so nothing jumps when the data arrives. */
 function DetailSkeleton() {
   return (
-    <div className="grid gap-4 xl:grid-cols-3" aria-busy>
-      <div className="flex flex-col gap-4 xl:col-span-2">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]" aria-busy>
+      <div className="flex flex-col gap-4">
         {[180, 200, 220].map((h) => (
           <Card key={h}>
             <Skeleton className="mb-4 h-5 w-32" />
@@ -89,140 +137,119 @@ function Body({ data }: { data: CaseContext }) {
     ])
 
   return (
-    <div className="grid gap-4 xl:grid-cols-3">
-      <div className="flex flex-col gap-4 xl:col-span-2">
-        <Card>
-          <CardTitle title="Case" />
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-            <Fact label="Category">{c.category}</Fact>
-            <Fact label="Region">{c.region}</Fact>
-            <Fact label="Account">
-              <Link to={`/accounts?account_id=${encodeURIComponent(c.account_id)}`} className="text-brand hover:underline">
-                {c.account_id}
-              </Link>
-            </Fact>
-            <Fact label="Status">
-              <Badge tone={c.status === 'Open' ? 'brand' : c.status === 'Closed' ? 'gray' : 'amber'}>{c.status}</Badge>
-            </Fact>
-            <Fact label="Channel">{c.channel}</Fact>
-            <Fact label="Source system">{c.source_system}</Fact>
-            <Fact label="Opened">{shortDate(c.date_opened)}</Fact>
-            <Fact label="SLA target">{c.sla_days} days</Fact>
-            <Fact label={c.status === 'Open' ? 'Days open' : 'Days to close'}>
-              <span className={c.breached_live ? 'font-medium text-red-600' : undefined}>{c.days_open}</span>{' '}
-              <span className="text-gray-500">
-                ({c.days_overdue > 0 ? `${c.days_overdue} over the target` : `${Math.abs(c.days_overdue)} inside the target`})
-              </span>
-            </Fact>
-            <Fact label="Transferred between systems">{c.transferred_between_systems ? 'Yes' : 'No'}</Fact>
-            {c.date_closed && <Fact label="Closed">{shortDate(c.date_closed)}</Fact>}
-            {c.resolution_action && <Fact label="Resolution">{c.resolution_action}</Fact>}
-            {c.bill_correction_value !== null && <Fact label="Bill correction">{num(c.bill_correction_value)}</Fact>}
-          </dl>
-        </Card>
+    <div className="flex flex-col gap-4">
+      <CaseHeader data={data} />
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <AgentPanel data={data} />
+          <Card>
+            <CardTitle
+              title="Account history"
+              hint={`${num(data.account_complaints_total)} ${data.account_complaints_total === 1 ? 'complaint' : 'complaints'} on this account, oldest first`}
+            />
+            <DataTable columns={historyColumns} rows={data.account_history} rowKey={(r) => r.complaint_id} pageSize={5} />
+          </Card>
+        </div>
 
-        <AgentPanel data={data} />
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-16">
+          <Card>
+            <CardTitle title="Details" />
+            <dl>
+              <Fact label="Category">{c.category}</Fact>
+              <Fact label="Channel">{c.channel}</Fact>
+              <Fact label="Source system">{c.source_system}</Fact>
+              <Fact label="Opened">{shortDate(c.date_opened)}</Fact>
+              <Fact label="SLA target">{c.sla_days} days</Fact>
+              <Fact label="Transferred">{c.transferred_between_systems ? 'Yes' : 'No'}</Fact>
+              {c.date_closed && <Fact label="Closed">{shortDate(c.date_closed)}</Fact>}
+              {c.resolution_action && <Fact label="Resolution">{c.resolution_action}</Fact>}
+              {c.bill_correction_value !== null && <Fact label="Bill correction">{num(c.bill_correction_value)}</Fact>}
+            </dl>
+          </Card>
 
-        <Card>
-          <CardTitle title="Classification" hint="What the classifier decided, and why" />
-          {cl ? (
-            <div className="flex flex-col gap-5">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-                <Fact label="Group">
-                  {cl.group_name}
-                  <div className="mt-0.5 text-xs text-gray-500">
-                    {cl.group_source === 'laya'
-                      ? `From Laya, ${pct(cl.group_confidence ?? 0)} sure`
-                      : `Laya was only ${pct(cl.group_confidence ?? 0)} sure (${cl.laya_group}), so the recorded category was used`}
-                  </div>
-                </Fact>
-                <Fact label="Subcategory">{cl.subcategory ?? '-'}</Fact>
-                <Fact label="Routed to">{cl.routed_team}</Fact>
-                <Fact label="Priority">
-                  <PriorityBadge priority={cl.priority} />
-                  {cl.priority !== cl.base_priority && <div className="mt-1 text-xs text-gray-500">was {cl.base_priority}, raised by the flags below</div>}
-                </Fact>
-                <Fact label="Lane">
-                  <LaneBadge lane={cl.lane} />
-                </Fact>
-                <Fact label="Likely cause">{cl.likely_cause ? humanize(cl.likely_cause) : '-'}</Fact>
-              </dl>
-              {cl.flags.length > 0 && (
-                <div>
-                  <p className="mb-2 text-xs font-medium text-gray-500">Flags that fired</p>
-                  <ul className="flex flex-col gap-1.5">
+          <Card>
+            <CardTitle title="Triage" hint="What the classifier decided, and why" />
+            {cl ? (
+              <>
+                <dl>
+                  <Fact label="Group">
+                    {cl.group_name}
+                    <div className="text-xs text-gray-500">
+                      {cl.group_source === 'laya' ? `Laya, ${pct(cl.group_confidence ?? 0)} sure` : `Recorded category (Laya ${pct(cl.group_confidence ?? 0)})`}
+                    </div>
+                  </Fact>
+                  <Fact label="Subcategory">{cl.subcategory ?? '-'}</Fact>
+                  <Fact label="Routed to">{cl.routed_team}</Fact>
+                  <Fact label="Priority">
+                    <PriorityBadge priority={cl.priority} />
+                    {cl.priority !== cl.base_priority && <div className="text-xs text-gray-500">raised from {cl.base_priority}</div>}
+                  </Fact>
+                  <Fact label="Likely cause">{cl.likely_cause ? humanize(cl.likely_cause) : '-'}</Fact>
+                </dl>
+                {cl.flags.length > 0 && (
+                  <ul className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
                     {cl.flags.map((flag) => (
-                      <li key={flag.name} className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+                      <li key={flag.name} className="text-sm">
                         <Badge tone="amber">{humanize(flag.name)}</Badge>
-                        {flag.reason && <span className="text-gray-500">{flag.reason}</span>}
+                        {flag.reason && <p className="mt-1 text-xs text-gray-500">{flag.reason}</p>}
                       </li>
                     ))}
                   </ul>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col items-start gap-3">
+                <p className="text-sm text-gray-500">Not classified yet.</p>
+                <Button onClick={runClassify} disabled={classify.isPending}>
+                  <span className="inline-flex items-center gap-2">
+                    {classify.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {classify.isPending ? 'Classifying…' : 'Classify this case'}
+                  </span>
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <CardTitle title="Region meter picture" hint={`${c.region}, estimated-read rate by month`} />
+            {data.region_meter.length === 0 ? (
+              <p className="text-sm text-gray-500">No meter data for this region.</p>
+            ) : (
+              <>
+                <div className="flex flex-col gap-2.5">
+                  {data.region_meter.map((m) => (
+                    <ShareBar key={m.month} label={monthName(m.month)} share={m.estimated_read_rate} />
+                  ))}
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-3 rounded-xl bg-gray-100 px-4 py-8 text-center">
-              <p className="text-sm text-gray-600">This case has not been classified yet.</p>
-              <Button onClick={runClassify} disabled={classify.isPending}>
-                <span className="inline-flex items-center gap-2">
-                  {classify.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {classify.isPending ? 'Classifying…' : 'Classify this case'}
-                </span>
-              </Button>
-            </div>
-          )}
-        </Card>
+                <p className="mt-3 text-xs text-gray-500">
+                  {data.region_meter[0].smart_meter_penetration === 0 ? 'No smart meters in this region. ' : `${pct(data.region_meter[0].smart_meter_penetration)} smart meters. `}
+                  {data.region_meter[0].billing_exceptions_per_1000} billing exceptions per 1,000 accounts.
+                </p>
+              </>
+            )}
+          </Card>
 
-        <Card>
-          <CardTitle
-            title="Account history"
-            hint={`${num(data.account_complaints_total)} ${data.account_complaints_total === 1 ? 'complaint' : 'complaints'} on this account, oldest first`}
-          />
-          <DataTable columns={historyColumns} rows={data.account_history} rowKey={(r) => r.complaint_id} pageSize={5} />
-        </Card>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        <Card>
-          <CardTitle title="Region meter picture" hint={`${c.region}, estimated-read rate by month`} />
-          {data.region_meter.length === 0 ? (
-            <p className="text-sm text-gray-500">No meter data for this region.</p>
-          ) : (
-            <>
-              <div className="flex flex-col gap-3">
-                {data.region_meter.map((m) => (
-                  <ShareBar key={m.month} label={monthName(m.month)} share={m.estimated_read_rate} />
+          <Card>
+            <CardTitle
+              title="How similar cases ended"
+              hint={data.category_profile ? `${num(data.category_profile.n)} closed cases of this category` : 'No closed cases of this category'}
+            />
+            {mix.length > 0 ? (
+              <div className="flex flex-col gap-2.5">
+                {mix.map((m) => (
+                  <ShareBar key={m.resolution_action} label={m.resolution_action} share={m.share} />
                 ))}
               </div>
-              <p className="mt-4 text-sm text-gray-500">
-                {data.region_meter[0].smart_meter_penetration === 0 ? 'No smart meters in this region. ' : `${pct(data.region_meter[0].smart_meter_penetration)} smart meters. `}
-                {data.region_meter[0].billing_exceptions_per_1000} billing exceptions per 1,000 accounts.
+            ) : (
+              <p className="text-sm text-gray-500">Nothing to compare with yet.</p>
+            )}
+            {data.category_profile?.avg_days != null && (
+              <p className="mt-3 text-xs text-gray-500">
+                Took {data.category_profile.avg_days} days on average; {pct(data.category_profile.transfer_rate ?? 0)} were transferred.
               </p>
-            </>
-          )}
-        </Card>
-
-        <Card>
-          <CardTitle
-            title="How similar cases ended"
-            hint={data.category_profile ? `${num(data.category_profile.n)} closed cases of this category` : 'No closed cases of this category'}
-          />
-          {mix.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              {mix.map((m) => (
-                <ShareBar key={m.resolution_action} label={m.resolution_action} share={m.share} />
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">Nothing to compare with yet.</p>
-          )}
-          {data.category_profile?.avg_days != null && (
-            <p className="mt-4 text-sm text-gray-500">
-              They took {data.category_profile.avg_days} days on average, and {pct(data.category_profile.transfer_rate ?? 0)} were transferred between systems.
-            </p>
-          )}
-        </Card>
+            )}
+          </Card>
+        </aside>
       </div>
     </div>
   )
@@ -235,15 +262,13 @@ export default function CaseDetail() {
 
   return (
     <>
-      <PageHeader
-        title={id}
-        description="Everything known about one complaint: the case, how it was classified, the region's meter data and the account's history."
-        actions={
-          <Link to="/cases" className="inline-flex items-center gap-1.5 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-600 hover:bg-gray-200">
-            <ArrowLeft className="h-4 w-4" /> All cases
-          </Link>
-        }
-      />
+      <nav className="flex items-center gap-1.5 text-sm text-gray-500">
+        <Link to="/cases" className="inline-flex items-center gap-1 hover:text-brand">
+          <ArrowLeft className="h-4 w-4" /> Cases
+        </Link>
+        <span className="text-gray-300">/</span>
+        <span className="num text-ink">{id}</span>
+      </nav>
       {query.isPending && <DetailSkeleton />}
       {query.isError && (
         <Card>

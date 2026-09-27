@@ -14,7 +14,7 @@ export default function Header({ onMenu }: { onMenu: () => void }) {
   }
 
   return (
-    <header className="flex items-center gap-3 rounded-2xl bg-card px-4 py-3">
+    <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-card/95 px-4 py-2.5 backdrop-blur md:px-6">
       <button type="button" onClick={onMenu} aria-label="Open menu" className="rounded-xl p-2 text-gray-500 hover:bg-gray-100 md:hidden">
         <Menu className="h-5 w-5" />
       </button>
@@ -24,17 +24,17 @@ export default function Header({ onMenu }: { onMenu: () => void }) {
         <input
           value={id}
           onChange={(e) => setId(e.target.value)}
-          placeholder="Open a complaint, e.g. NW-120404"
-          className="w-full rounded-xl bg-gray-100 py-2 pr-3 pl-9 text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-brand/30 focus:outline-none"
+          placeholder="Jump to case — e.g. NW-120404"
+          className="w-full rounded-md border border-line bg-page py-1.5 pr-3 pl-9 font-mono text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-brand/30 focus:outline-none"
         />
       </form>
 
       <div className="ml-auto flex items-center gap-3">
         <span className="hidden items-center gap-1.5 text-xs text-gray-500 sm:flex">
-          <CalendarDays className="h-4 w-4 text-brand" />
+          <CalendarDays className="h-4 w-4 text-gray-400" />
           As of 30 Sep 2026
         </span>
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-soft text-brand" aria-label="Account">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-page text-gray-500" aria-label="Account">
           <User className="h-4 w-4" />
         </div>
       </div>

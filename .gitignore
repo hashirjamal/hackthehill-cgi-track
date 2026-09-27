@@ -5,3 +5,4 @@ __pycache__/
 dev.db
 db/seed/
 northwind_systems/data/
+.playwright-mcp/

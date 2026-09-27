@@ -11,7 +11,7 @@ const SYSTEM_STYLE: Record<SystemCall['system'], { chip: string; label: string; 
   connect: { chip: 'bg-indigo-600 text-white', label: 'Connect', era: 'Customer portal, 2019' },
 }
 
-/** Which Northwind systems the agent looked at, what it was told, and the raw record behind it. */
+/** Which source systems the agent looked at, what it was told, and the raw record behind it. */
 export default function SystemsChecked({ calls }: { calls: SystemCall[] }) {
   if (calls.length === 0) return null
   const distinct = new Set(calls.map((c) => c.system)).size
@@ -26,7 +26,7 @@ export default function SystemsChecked({ calls }: { calls: SystemCall[] }) {
           const s = SYSTEM_STYLE[c.system]
           return (
             <li key={i}>
-              <details className="group rounded-xl bg-gray-100">
+              <details className="group rounded-md border border-line bg-page">
                 <summary className="flex cursor-pointer list-none items-start gap-2 p-2.5 text-sm">
                   <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:rotate-90" />
                   <span className={cn('shrink-0 rounded-md px-2 py-0.5 text-xs', s.chip)} title={s.era}>
@@ -36,7 +36,7 @@ export default function SystemsChecked({ calls }: { calls: SystemCall[] }) {
                     {firstLine(c.summary) ?? 'Looked up'}
                   </span>
                 </summary>
-                <div className="grid gap-3 border-t border-gray-200 p-3 lg:grid-cols-2">
+                <div className="grid gap-3 border-t border-line bg-card p-3 lg:grid-cols-2">
                   <div className="min-w-0">
                     <p className="mb-1 text-xs font-medium text-gray-500">What the system returned</p>
                     <p className="mb-1 truncate font-mono text-[11px] text-gray-400">{c.request}</p>

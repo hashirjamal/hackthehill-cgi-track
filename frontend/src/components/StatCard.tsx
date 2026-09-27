@@ -17,17 +17,17 @@ export default function StatCard({
   error?: boolean
 }) {
   return (
-    <Card className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-gray-500">{label}</span>
+    <Card className="flex flex-col gap-1">
+      <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">{label}</span>
       {loading ? (
         <Skeleton className="my-1 h-10 w-28" />
       ) : (
-        <span className="text-4xl font-bold tracking-tight text-brand tabular-nums">{error ? '-' : value}</span>
+        <span className="num text-3xl font-medium text-ink">{error ? '-' : value}</span>
       )}
       {loading ? (
         <Skeleton className="h-4 w-36" />
       ) : (
-        (error || hint) && <span className="text-sm text-gray-500">{error ? "Couldn't load" : hint}</span>
+        (error || hint) && <span className="text-xs text-gray-500">{error ? "Couldn't load" : hint}</span>
       )}
     </Card>
   )
