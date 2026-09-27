@@ -68,7 +68,8 @@ def _client(monkeypatch, with_views=True):
         finally:
             db.close()
 
-    app.dependency_overrides[get_db] = override_get_db
+    # setitem is undone after each test, so the override never leaks into other test files.
+    monkeypatch.setitem(app.dependency_overrides, get_db, override_get_db)
     monkeypatch.setattr("app.complaint_routes.get_laya", lambda: FakeLaya())
     monkeypatch.setattr("app.complaint_routes.settings.agent_enabled", False)
     return TestClient(app), TestSession
