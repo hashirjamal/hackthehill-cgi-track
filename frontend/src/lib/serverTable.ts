@@ -11,7 +11,7 @@ interface PagedQuery {
 }
 
 /** Connect a table to its URL state (`list`) and its query, so paging, sorting and loading all follow the API. */
-export function serverTable(list: ReturnType<typeof useListParams>, query: PagedQuery): ServerTable {
+export function serverTable(list: ReturnType<typeof useListParams>, query: PagedQuery, emptyText?: string): ServerTable {
   return {
     // The numbers of the rows on screen, which are the previous page's while the next one loads.
     page: query.data?.page ?? list.page,
@@ -27,5 +27,6 @@ export function serverTable(list: ReturnType<typeof useListParams>, query: Paged
     error: query.error,
     onRetry: () => void query.refetch(),
     onClearFilters: list.hasFilters ? list.clearFilters : undefined,
+    emptyText,
   }
 }

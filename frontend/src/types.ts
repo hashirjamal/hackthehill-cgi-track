@@ -115,8 +115,16 @@ export interface AccountHistoryRow {
   account_id: string
   complaint_id: string
   date_opened: string
-  category: string
+  date_closed: string | null
   status: string
+  category: string
+  region: string
+  channel: string
+  priority: Priority
+  resolution_action: string | null
+  days_to_close: number | null
+  reopened: boolean
+  transferred_between_systems: boolean
   complaint_seq: number
   complaints_on_account: number
   days_since_previous: number | null
@@ -129,16 +137,23 @@ export interface AgentResultRow {
   classified: number
   fast_lane: number
   runs: number
+  runs_failed: number
+  drafts: number
   drafts_pending: number
   drafts_approved: number
+  drafts_edited: number
+  drafts_rejected: number
+  drafts_sent: number
 }
 
+/** One group of the classification results. The grouping column is named by `group_by`. */
 export interface ClassificationSummaryRow {
-  group_name: string
   classifications: number
   share_of_total: number
-  avg_group_confidence: number
+  avg_group_confidence: number | null
   data_fallbacks: number
+  group_match_rate: number | null
+  [column: string]: string | number | boolean | null
 }
 
 export interface ProfileRow {
@@ -150,7 +165,9 @@ export interface ProfileRow {
   info_only_share: number
   transfer_rate: number
   reopen_rate: number
+  breach_rate: number
   top_resolution: string
+  avg_bill_correction: number | null
 }
 
 export interface CaseFlag {

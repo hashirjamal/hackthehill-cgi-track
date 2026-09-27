@@ -36,6 +36,8 @@ export interface ServerTable {
   onRetry: () => void
   /** Offered when a filter matches nothing. */
   onClearFilters?: () => void
+  /** What to say when there are no rows and no filter is set, for example "Nothing has been classified yet". */
+  emptyText?: string
 }
 
 const PAGE_SIZES = [5, 10, 25, 50, 100]
@@ -187,7 +189,9 @@ export default function DataTable<T>({
         {failed && server && <ErrorState error={server.error} onRetry={server.onRetry} />}
         {empty && (
           <div className="flex flex-col items-center gap-2 px-3 py-12 text-center">
-            <p className="text-base font-medium text-gray-700">Nothing matches these filters</p>
+            <p className="text-base font-medium text-gray-700">
+              {server?.onClearFilters || !server?.emptyText ? 'Nothing matches these filters' : server.emptyText}
+            </p>
             {server?.onClearFilters && (
               <button type="button" onClick={server.onClearFilters} className="text-sm font-medium text-brand hover:underline">
                 Clear filters

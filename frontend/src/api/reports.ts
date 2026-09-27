@@ -1,7 +1,19 @@
 /** Hooks for the reporting API (GET /reports/...) and the classification call. One hook for each endpoint. */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toastLoading, toastSuccess } from '../lib/notify'
-import type { BreakdownRow, CaseContext, CaseRow, ClusterRow, FlowRow, RootCauseRow, WorklistRow } from '../types'
+import type {
+  AccountHistoryRow,
+  AgentResultRow,
+  BreakdownRow,
+  CaseContext,
+  CaseRow,
+  ClassificationSummaryRow,
+  ClusterRow,
+  FlowRow,
+  ProfileRow,
+  RootCauseRow,
+  WorklistRow,
+} from '../types'
 import { apiGet, apiPost, type Params } from './client'
 import type { Page } from './types'
 
@@ -65,6 +77,27 @@ export const useCaseContext = (id: string) =>
     queryKey: [REPORTS, 'case', id],
     queryFn: ({ signal }) => apiGet<CaseContext>(`/reports/cases/${encodeURIComponent(id)}`, { history_limit: 20 }, signal),
     meta: { label: `case ${id}` },
+  })
+
+// --- Accounts and profiles ----------------------------------------------------------------------
+
+export const useAccountHistory = (params: Params) => useList<AccountHistoryRow>('account-history', params, 'the account history')
+export const useAccountsTotal = (filters: Params, label: string) => useTotal('account-history', filters, label)
+export const useProfiles = (params: Params) => useList<ProfileRow>('case-profiles', params, 'the case profiles')
+
+// --- Agents and classification results ----------------------------------------------------------
+
+export const useAgentResults = (params: Params, label = 'the AI agent results') => useList<AgentResultRow>('agent-results', params, label)
+
+export interface SummaryPage extends Page<ClassificationSummaryRow> {
+  group_by: string[]
+}
+export const useClassificationSummary = (params: Params, label = 'the classification results') =>
+  useQuery({
+    queryKey: [REPORTS, 'classifications/summary', params],
+    queryFn: ({ signal }) => apiGet<SummaryPage>('/reports/classifications/summary', params, signal),
+    placeholderData: keepPreviousData,
+    meta: { label },
   })
 
 // --- Classification -----------------------------------------------------------------------------
