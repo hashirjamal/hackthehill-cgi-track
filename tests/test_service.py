@@ -166,8 +166,23 @@ def test_urgency_always_comes_from_laya_and_northwinds_priority_is_ignored():
     assert (result.priority.base_level, result.priority.base_source) == ("P3", "laya")
     assert result.priority.level == "P2" and result.priority.raised_by == ["disconnection"]  # flags still raise it
 
-    result = run(FakeLaya(urgency=2), text=None, category="Other", priority="P3")
-    assert (result.priority.level, result.priority.urgency_score) == ("P1", 2.0)
+    result = run(FakeLaya(urgency=1), text=None, category="Other", priority="P3")
+    assert (result.priority.level, result.priority.urgency_score) == ("P2", 1.0)
+
+
+def test_p1_needs_evidence_not_just_a_high_urgency_score():
+    # Laya's urgency alone stops at P2...
+    result = run(FakeLaya(urgency=2))
+    assert (result.priority.base_level, result.priority.level) == ("P2", "P2")
+    # ...a vulnerable customer or a health or safety risk takes it to P1, with the reason recorded.
+    for flag in ("vulnerable", "safety_risk"):
+        result = run(FakeLaya(urgency=0, flags={flag: 0.9}))
+        assert (result.priority.level, result.priority.raised_by) == ("P1", [flag])
+
+
+def test_repeat_contact_makes_it_at_least_p2_but_never_p1_on_its_own():
+    assert run(FakeLaya(urgency=0, flags={"repeat_contact": 0.9})).priority.level == "P2"
+    assert run(FakeLaya(urgency=2, flags={"repeat_contact": 0.9})).priority.level == "P2"
 
 
 def test_data_category_is_compared_with_laya_not_used_instead_of_it():

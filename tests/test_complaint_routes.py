@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
+from app.classification.taxonomy import TEXT_FLAG_QUESTIONS
 from app.laya_service import get_laya
 from app.main import app
 from app.models import Account, ActionItem, AgentRun, Classification, Complaint, DraftResponse, Region
@@ -28,7 +29,7 @@ class FakeLaya:
             answers["group"] = {"probabilities": probs}
         if "urgency" in questions:
             answers["urgency"] = {"score": 0.0, "probabilities": {"0": 1.0, "1": 0.0, "2": 0.0}}
-        for name in ("disconnection", "vulnerable", "escalation_threat", "repeat_contact", "high_bill", "info_only"):
+        for name in TEXT_FLAG_QUESTIONS:
             answers[name] = {"noul": 0.0}
         return {"answers": answers}
 
