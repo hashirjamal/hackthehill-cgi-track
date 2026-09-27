@@ -2,23 +2,11 @@
 import type {
   AccountHistoryRow,
   AgentResultRow,
-  CaseRow,
   ClassificationSummaryRow,
   ProfileRow,
 } from './types'
 
 export { CATEGORIES, CHANNELS, LANES, PRIORITIES, REGIONS, TEAMS } from './constants'
-
-export const cases: CaseRow[] = [
-  { complaint_id: 'NW-124358', date_opened: '2026-09-17', status: 'Open', category: 'Supply - interruption', region: 'Fenwick', priority: 'P1', days_open: 13, breached_live: true, routed_team: 'Network operations', resolution_action: null },
-  { complaint_id: 'NW-120404', date_opened: '2026-06-16', status: 'Open', category: 'Billing - estimated read', region: 'Barrowdale', priority: 'P3', days_open: 106, breached_live: true, routed_team: 'Metering team', resolution_action: null },
-  { complaint_id: 'NW-100003', date_opened: '2024-10-01', status: 'Closed - reopened', category: 'Billing - disputed amount', region: 'Ashford', priority: 'P2', days_open: 15, breached_live: true, routed_team: null, resolution_action: 'Bill corrected and re-issued' },
-  { complaint_id: 'NW-100002', date_opened: '2024-10-01', status: 'Closed', category: 'Billing - disputed amount', region: 'Ashford', priority: 'P2', days_open: 6, breached_live: false, routed_team: null, resolution_action: 'Bill corrected and re-issued' },
-  { complaint_id: 'NW-100001', date_opened: '2024-10-01', status: 'Closed', category: 'Billing - disputed amount', region: 'Ashford', priority: 'P3', days_open: 29, breached_live: true, routed_team: null, resolution_action: 'Refund or credit applied' },
-  { complaint_id: 'NW-118820', date_opened: '2026-04-02', status: 'Closed', category: 'Service - missed appointment', region: 'Calderfield', priority: 'P3', days_open: 18, breached_live: false, routed_team: null, resolution_action: 'Appointment rebooked by agent' },
-  { complaint_id: 'NW-119544', date_opened: '2026-05-11', status: 'Closed', category: 'Payment - plan or arrears', region: 'Eastmarch', priority: 'P3', days_open: 21, breached_live: true, routed_team: null, resolution_action: 'Payment plan amended' },
-  { complaint_id: 'NW-121979', date_opened: '2026-07-06', status: 'Open', category: 'Service - poor communication', region: 'Calderfield', priority: 'P3', days_open: 86, breached_live: true, routed_team: 'Customer care leads', resolution_action: null },
-]
 
 export const accountHistory: AccountHistoryRow[] = [
   { account_id: 'ACC-120669', complaint_id: 'NW-104112', date_opened: '2025-02-11', category: 'Billing - disputed amount', status: 'Closed', complaint_seq: 1, complaints_on_account: 3, days_since_previous: null, is_repeat: false },

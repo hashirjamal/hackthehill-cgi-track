@@ -206,7 +206,7 @@ export default function DataTable<T>({
               <span>-</span>
             ) : (
               <>
-              {from}–{to} of {num(shown)}
+              {num(from)}–{num(to)} of {num(shown)}
               {!server && shown > rows.length && <span className="text-gray-400"> · sample rows</span>}
               </>
             )

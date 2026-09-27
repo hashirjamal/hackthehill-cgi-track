@@ -82,15 +82,33 @@ export interface ClusterRow {
 
 export interface CaseRow {
   complaint_id: string
+  account_id: string
   date_opened: string
+  date_closed: string | null
   status: 'Open' | 'Closed' | 'Closed - reopened'
+  channel: string
   category: string
-  region: string
   priority: Priority
-  days_open: number
-  breached_live: boolean
-  routed_team: string | null
+  region: string
+  source_system: string
+  transferred_between_systems: boolean
+  sla_days: number
+  days_to_close: number | null
+  reopened: boolean
   resolution_action: string | null
+  resolvable_by_information_only: boolean | null
+  bill_correction_value: number | null
+  domain: string
+  days_open: number
+  days_overdue: number
+  breached_live: boolean
+  age_band: string
+  classification_id: number | null
+  group_name: string | null
+  subcategory: string | null
+  classified_priority: Priority
+  routed_team: string | null
+  lane: 'emergency' | 'review' | 'quick_lane' | 'standard' | null
 }
 
 export interface AccountHistoryRow {
