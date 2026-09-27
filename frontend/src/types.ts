@@ -249,13 +249,13 @@ export interface CaseContext {
   account_history: AccountCase[]
   drafts: { draft_id: number; run_id: number | null; status: string; body: string; created_at: string }[]
   action_items: CaseActionItem[]
-  /** Northwind systems the agent checked, for the latest Get context and Generate draft runs, by run_id. */
+  /** source systems the agent checked, for the latest Get context and Generate draft runs, by run_id. */
   systems_checked: Record<string, SystemCall[]>
   /** Whether each of those runs used the local AI or the no-AI rules. */
   run_modes: Record<string, 'ai' | 'rules'>
 }
 
-/** One request the agent made to a Northwind system. */
+/** One request the agent made to a source system. */
 export interface SystemCall {
   system: 'helix' | 'aurora' | 'casetrack' | 'callcentre' | 'connect'
   system_name: string

@@ -16,12 +16,12 @@ const columns: Column<CaseRow>[] = [
     header: 'Complaint',
     sortKey: 'complaint_id',
     cell: (r) => (
-      <Link to={`/cases/${r.complaint_id}`} className="font-medium text-brand hover:underline">
+      <Link to={`/cases/${r.complaint_id}`} className="num text-brand hover:underline">
         {r.complaint_id}
       </Link>
     ),
   },
-  { key: 'date_opened', header: 'Opened', sortKey: 'date_opened' },
+  { key: 'date_opened', header: 'Opened', sortKey: 'date_opened', cell: (r) => <span className="num text-gray-600">{r.date_opened}</span> },
   {
     key: 'status',
     header: 'Status',
@@ -40,7 +40,7 @@ const columns: Column<CaseRow>[] = [
     ),
   },
   { key: 'classified_priority', header: 'Priority', sortKey: 'classified_priority', cell: (r) => <PriorityBadge priority={r.classified_priority} /> },
-  { key: 'days_open', header: 'Days', align: 'right', sortKey: 'days_open' },
+  { key: 'days_open', header: 'Age', align: 'right', sortKey: 'days_open', cell: (r) => <span className={r.breached_live ? 'num text-red-700' : 'num'}>{r.days_open}d</span> },
   {
     key: 'breached_live',
     header: 'SLA',
@@ -48,7 +48,7 @@ const columns: Column<CaseRow>[] = [
   },
   {
     key: 'outcome',
-    header: 'Team or outcome',
+    header: 'Team / outcome',
     sortKey: 'routed_team',
     cell: (r) => <span className="block max-w-48 whitespace-normal">{r.routed_team ?? r.resolution_action ?? '-'}</span>,
   },
@@ -61,7 +61,7 @@ export default function Cases() {
 
   return (
     <>
-      <PageHeader title="Cases" description="Search every complaint, open or closed, and open one to see its full context." />
+      <PageHeader title="Cases" description="Every complaint, open or closed. Filter to your team's queue and open a case to work it." />
 
       <FilterBar onClear={list.hasFilters ? list.clearFilters : undefined}>
         <SearchField placeholder="Complaint or account id" value={f.q} onChange={(v) => list.setFilter('q', v)} />

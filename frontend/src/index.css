@@ -1,43 +1,45 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/inter';
 
-/* The look of the app lives here. Page: a gray tint. Cards: a bit whitish. No borders, only rounded corners.
-   Brand is a deep purple (purple-800), used for titles, links, buttons and the charts. */
+/* Trev's look: a working tool, not a showcase. Warm paper page, white panels with hairline borders,
+   small corners, IBM Plex for text and Plex Mono for ids and numbers. One accent: deep ink green. */
 @theme {
-  --color-page: #eeeff4;
-  --color-card: #fbfbfd;
+  --color-page: #f5f4ef;
+  --color-card: #ffffff;
+  --color-line: #e2e0d8;
+  --color-ink: #1c1f1d;
 
-  --color-brand: #6b21a8;
-  --color-brand-dark: #581c87;
-  --color-brand-soft: #f3ebfa;
+  --color-brand: #1f5a4c;
+  --color-brand-dark: #173f36;
+  --color-brand-soft: #e8f0ed;
 
-  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 
-  /* A step bigger than Tailwind's defaults, so text reads comfortably. */
-  --text-xs: 0.8125rem;
-  --text-xs--line-height: 1.15rem;
-  --text-sm: 0.9375rem;
-  --text-sm--line-height: 1.4rem;
-  --text-base: 1.0625rem;
-  --text-base--line-height: 1.6rem;
-  --text-lg: 1.1875rem;
-  --text-lg--line-height: 1.65rem;
-  --text-xl: 1.375rem;
-  --text-xl--line-height: 1.8rem;
-  --text-2xl: 1.75rem;
-  --text-2xl--line-height: 2.1rem;
-  --text-3xl: 2.125rem;
-  --text-3xl--line-height: 2.4rem;
-  --text-4xl: 2.75rem;
-  --text-4xl--line-height: 1;
+  /* Small, square-ish corners everywhere. */
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 5px;
+  --radius-2xl: 6px;
+
+  --text-xs: 0.78rem;
+  --text-xs--line-height: 1.1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.35rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.55rem;
 }
 
 body {
-  @apply bg-page text-gray-800 antialiased;
-  font-feature-settings: 'cv11', 'ss01'; /* Inter's single-storey a and open digits, easier to read */
+  @apply bg-page text-ink antialiased;
 }
 
-/* Keep the layout from jumping when the scrollbar appears. */
 html {
   scrollbar-gutter: stable;
+}
+
+/* Ids, amounts and counts line up in columns. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }

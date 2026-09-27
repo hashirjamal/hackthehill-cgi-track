@@ -7,11 +7,11 @@ import Card from './Card'
 // or leave them out and it keeps its own state (a page that is not connected to the API yet).
 
 const field =
-  'rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/30'
+  'rounded-md border border-line bg-card px-2.5 py-1.5 text-sm text-ink placeholder:text-gray-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20'
 
 export function FilterBar({ children, onClear }: { children: ReactNode; onClear?: () => void }) {
   return (
-    <Card className="flex flex-wrap items-end gap-3 py-4">
+    <Card className="flex flex-wrap items-end gap-3 py-3">
       {children}
       {onClear && (
         <button type="button" onClick={onClear} className="rounded-xl px-3 py-2 text-sm font-medium text-brand hover:bg-brand-soft">
@@ -135,8 +135,8 @@ export function ToggleChip({
       aria-pressed={active}
       onClick={() => (onChange ? onChange(!active) : setOwn(!own))}
       className={cn(
-        'rounded-full px-3.5 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand/30',
-        active ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+        'rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand/30',
+        active ? 'border-brand bg-brand text-white' : 'border-line bg-card text-gray-600 hover:bg-page',
       )}
     >
       {label}
@@ -200,8 +200,8 @@ export function Button({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'rounded-xl px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50',
-        variant === 'primary' ? 'bg-brand text-white hover:bg-brand-dark' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+        'rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50',
+        variant === 'primary' ? 'border-brand-dark bg-brand text-white hover:bg-brand-dark' : 'border-line bg-card text-ink hover:bg-page',
       )}
     >
       {children}

@@ -132,7 +132,7 @@ export default function DataTable<T>({
       <div className={cn('overflow-x-auto transition-opacity', server?.isFetching && !server.isLoading && 'opacity-60')} aria-busy={server?.isFetching}>
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            <tr className="border-b border-line text-[11px] font-medium tracking-wider text-gray-500 uppercase">
               {columns.map((col) => {
                 const active = isActive(col)
                 return (
@@ -174,7 +174,7 @@ export default function DataTable<T>({
                     <td
                       key={col.key}
                       className={cn(
-                        'px-3 py-3.5 whitespace-nowrap text-gray-800 first:rounded-l-xl last:rounded-r-xl group-hover:bg-brand-soft',
+                        'border-b border-line/70 px-3 py-2.5 whitespace-nowrap text-ink group-hover:bg-page',
                         col.align === 'right' && 'text-right tabular-nums',
                       )}
                     >

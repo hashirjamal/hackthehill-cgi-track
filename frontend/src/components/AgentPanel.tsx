@@ -2,7 +2,7 @@ import { Bot, Check, ClipboardCopy, ListChecks, Loader2, PenLine, Workflow } fro
 import { useEffect, useState } from 'react'
 import { useGenerateDraft, useGetContext } from '../api/reports'
 import { cn } from '../lib/cn'
-import { humanize, shortDate } from '../lib/format'
+import { shortDate } from '../lib/format'
 import type { CaseContext } from '../types'
 import Card, { CardTitle } from './Card'
 import { Button } from './Controls'
@@ -20,7 +20,7 @@ function savedMode(): Mode {
 }
 
 /** The two buttons on a case. Nothing runs until staff click, and nothing is ever sent or changed.
- * Both check Northwind's systems. With AI on, a local LLM reads the records and writes the result;
+ * Both check the source systems. With AI on, a local LLM reads the records and writes the result;
  * with AI off, fixed rules and templates do - same systems, same trace, no AI anywhere. */
 export default function AgentPanel({ data }: { data: CaseContext }) {
   const id = data.case.complaint_id
@@ -48,11 +48,11 @@ export default function AgentPanel({ data }: { data: CaseContext }) {
   return (
     <Card>
       <CardTitle
-        title="Case assistant"
-        hint="Checks Northwind's systems for you. It suggests; staff decide and act."
+        title="Work this case"
+        hint="Pulls the records from billing, CRM, case and call systems. It suggests; you decide and act."
         action={<ModeSwitch mode={mode} onChange={chooseMode} disabled={busy} />}
       />
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 border-b border-line pb-4">
         <Button onClick={() => context.mutate(mode)} disabled={busy}>
           <span className="inline-flex items-center gap-2">
             {context.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListChecks className="h-4 w-4" />}
@@ -73,14 +73,14 @@ export default function AgentPanel({ data }: { data: CaseContext }) {
         {actions.length === 0 ? (
           <p className="mt-2 text-sm text-gray-500">Click Get context for a ranked list of what to do on this case.</p>
         ) : (
-          <ol className="mt-2 flex flex-col gap-2.5">
+          <ol className="mt-1 flex flex-col">
             {actions.map((a) => (
-              <li key={a.action_id} className="flex gap-3 rounded-xl bg-gray-100 p-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white">{a.rank}</span>
+              <li key={a.action_id} className="flex gap-3 border-b border-line/70 py-2.5 last:border-0">
+                <span className="num flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border border-line bg-page text-xs text-gray-600">{a.rank}</span>
                 <div className="text-sm">
                   <p className="font-medium text-gray-800">{a.description}</p>
                   {a.rationale && <p className="mt-0.5 text-gray-500">{a.rationale}</p>}
-                  <p className="mt-1 text-xs text-gray-400">{humanize(a.action_type)}</p>
+                  <p className="mt-1 font-mono text-[11px] text-gray-400">{a.action_type}</p>
                 </div>
               </li>
             ))}
@@ -113,8 +113,8 @@ function ModeSwitch({ mode, onChange, disabled }: { mode: Mode; onChange: (m: Mo
       disabled={disabled}
       onClick={() => onChange(m)}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors focus:outline-none disabled:opacity-50',
-        mode === m ? 'bg-card font-medium text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700',
+        'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors focus:outline-none disabled:opacity-50',
+        mode === m ? 'bg-card font-medium text-brand-dark shadow-sm ring-1 ring-line' : 'text-gray-500 hover:text-gray-700',
       )}
     >
       <Icon className="h-4 w-4" />
@@ -122,7 +122,7 @@ function ModeSwitch({ mode, onChange, disabled }: { mode: Mode; onChange: (m: Mo
     </button>
   )
   return (
-    <div className="flex shrink-0 gap-1 rounded-xl bg-gray-100 p-1" title="With AI off, the same systems are checked and fixed rules write the result.">
+    <div className="flex shrink-0 gap-1 rounded-md border border-line bg-page p-0.5" title="With AI off, the same systems are checked and fixed rules write the result.">
       {option('ai', 'AI on', Bot)}
       {option('rules', 'AI off', Workflow)}
     </div>
@@ -132,9 +132,9 @@ function ModeSwitch({ mode, onChange, disabled }: { mode: Mode; onChange: (m: Mo
 function SectionTitle({ title, mode }: { title: string; mode: 'ai' | 'rules' | undefined }) {
   return (
     <div className="flex items-center gap-2">
-      <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">{title}</h3>
+      <h3 className="text-[11px] font-medium tracking-wider text-gray-500 uppercase">{title}</h3>
       {mode && (
-        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', mode === 'ai' ? 'bg-brand-soft text-brand' : 'bg-gray-200 text-gray-600')}>
+        <span className={cn('rounded-sm px-1.5 py-0.5 text-[11px] font-medium', mode === 'ai' ? 'bg-brand-soft text-brand' : 'bg-gray-200 text-gray-600')}>
           {mode === 'ai' ? 'Written by local AI' : 'Built by rules - no AI'}
         </span>
       )}
@@ -143,7 +143,7 @@ function SectionTitle({ title, mode }: { title: string; mode: 'ai' | 'rules' | u
 }
 
 function Note({ text }: { text: string }) {
-  return <p className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{text}</p>
+  return <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-900">{text}</p>
 }
 
 function DraftEditor({ body, created }: { body: string; created: string }) {
@@ -164,7 +164,7 @@ function DraftEditor({ body, created }: { body: string; created: string }) {
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="min-h-48 w-full rounded-xl bg-gray-100 p-3 text-sm text-gray-800 focus:ring-2 focus:ring-brand/30 focus:outline-none"
+        className="min-h-56 w-full rounded-md border border-line bg-page p-3 text-sm leading-relaxed text-ink focus:ring-2 focus:ring-brand/30 focus:outline-none"
       />
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-xs text-gray-400">Drafted {shortDate(created)}. Not sent: review, edit and send it yourself.</span>

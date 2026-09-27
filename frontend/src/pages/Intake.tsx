@@ -12,7 +12,7 @@ import { humanize } from '../lib/format'
 // The four systems complaints come in through. Everything else in the estate is upstream or downstream.
 const INTAKE_SYSTEMS = [
   { value: 'SYS-05', label: 'CallCentre One (phone)' },
-  { value: 'SYS-03', label: 'Northwind Connect (web / app)' },
+  { value: 'SYS-03', label: 'Connect (web / app)' },
   { value: 'SYS-01', label: 'Aurora Billing' },
   { value: 'SYS-04', label: 'CaseTrack' },
 ]
