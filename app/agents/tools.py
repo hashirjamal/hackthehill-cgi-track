@@ -7,7 +7,15 @@ get_account_complaints, get_case_profile, get_region_meter_picture) are shared b
 every domain, since none of them reference anything domain-specific. Which single output tool is
 bound (create_action_brief or save_draft_reply) is what actually separates the two buttons - the
 model structurally cannot produce the other kind of output, whatever the prompt says.
+
+LangGraph's ToolNode runs every tool call through a ThreadPoolExecutor, even when there's only
+one call to make (confirmed by reading langgraph.prebuilt.tool_node - it always goes through
+`executor.map`, never inline on the calling thread). Every DB-touching tool built here therefore
+takes the same `lock` (one per request, created by the caller) around its query/write, so two
+tool calls sharing one SQLAlchemy Session are never actually concurrent - confirmed live against
+a real Ollama model, which reliably reproduced "Session is already flushing" without this lock.
 """
+import threading
 from datetime import date
 
 from langchain.tools import tool
@@ -44,13 +52,14 @@ def _pct(value: float | None) -> str:
     return f"{value * 100:.0f}%" if value is not None else "unknown"
 
 
-def build_context_tools(db: Session, complaint: Complaint, as_of: date) -> list:
+def build_context_tools(db: Session, complaint: Complaint, as_of: date, lock: threading.Lock) -> list:
     """Read-only lookups every domain shares. No side effects."""
 
     @tool
     def read_case() -> str:
         """Read this complaint's own details: category, channel, priority, region, source
         system, status, and how long it has been open. Always useful - call this first."""
+        # No `db` access at all - just the complaint's own attributes - so no lock needed.
         open_days = (as_of - complaint.date_opened).days
         parts = [
             f"Complaint {complaint.complaint_id}: {complaint.category}, via {complaint.channel}, "
@@ -66,14 +75,15 @@ def build_context_tools(db: Session, complaint: Complaint, as_of: date) -> list:
     def get_account_complaints() -> str:
         """List this account's other complaints (category, status, resolution), to spot repeat
         issues or earlier context on the same account."""
-        rows = db.execute(
-            text(
-                "SELECT complaint_id, date_opened, category, status, resolution_action "
-                "FROM v_account_history WHERE account_id = :account_id AND complaint_id != :current "
-                "ORDER BY date_opened DESC LIMIT 20"
-            ),
-            {"account_id": complaint.account_id, "current": complaint.complaint_id},
-        ).mappings().all()
+        with lock:
+            rows = db.execute(
+                text(
+                    "SELECT complaint_id, date_opened, category, status, resolution_action "
+                    "FROM v_account_history WHERE account_id = :account_id AND complaint_id != :current "
+                    "ORDER BY date_opened DESC LIMIT 20"
+                ),
+                {"account_id": complaint.account_id, "current": complaint.complaint_id},
+            ).mappings().all()
         if not rows:
             return "No other complaints found for this account."
         return "\n".join(
@@ -87,18 +97,19 @@ def build_context_tools(db: Session, complaint: Complaint, as_of: date) -> list:
         """Look up how similar closed cases (same category, region and source system as this
         complaint) were usually handled: how many, average days to close, information-only
         share, transfer/reopen/breach rates, and the most common resolution."""
-        row = db.execute(
-            text(
-                "SELECT n, avg_days, info_only_share, transfer_rate, reopen_rate, breach_rate, "
-                "top_resolution FROM v_case_profile "
-                "WHERE category = :category AND region = :region AND source_system = :source_system"
-            ),
-            {
-                "category": complaint.category,
-                "region": complaint.region,
-                "source_system": complaint.source_system,
-            },
-        ).mappings().first()
+        with lock:
+            row = db.execute(
+                text(
+                    "SELECT n, avg_days, info_only_share, transfer_rate, reopen_rate, breach_rate, "
+                    "top_resolution FROM v_case_profile "
+                    "WHERE category = :category AND region = :region AND source_system = :source_system"
+                ),
+                {
+                    "category": complaint.category,
+                    "region": complaint.region,
+                    "source_system": complaint.source_system,
+                },
+            ).mappings().first()
         if not row:
             return "No matching case history for this category, region and system."
         return (
@@ -113,14 +124,15 @@ def build_context_tools(db: Session, complaint: Complaint, as_of: date) -> list:
         """Look up this complaint's region's meter picture for the current month: estimated-read
         rate, smart-meter penetration, billing exceptions per 1,000 accounts. Most useful for
         billing, metering or estimated-read cases."""
-        row = db.execute(
-            text(
-                "SELECT month, estimated_read_rate, smart_meter_penetration, "
-                "billing_exceptions_per_1000 FROM v_region_meter_complaints "
-                "WHERE region = :region AND month = :month"
-            ),
-            {"region": complaint.region, "month": as_of.strftime("%Y-%m")},
-        ).mappings().first()
+        with lock:
+            row = db.execute(
+                text(
+                    "SELECT month, estimated_read_rate, smart_meter_penetration, "
+                    "billing_exceptions_per_1000 FROM v_region_meter_complaints "
+                    "WHERE region = :region AND month = :month"
+                ),
+                {"region": complaint.region, "month": as_of.strftime("%Y-%m")},
+            ).mappings().first()
         if not row:
             return "No meter data for this region and month."
         exceptions = row["billing_exceptions_per_1000"]
@@ -152,17 +164,19 @@ def _knowledge_base_tool():
     return search_knowledge_base
 
 
-def build_context_tools_for(agent_id: str | None, db: Session, complaint: Complaint, as_of: date) -> list:
+def build_context_tools_for(
+    agent_id: str | None, db: Session, complaint: Complaint, as_of: date, lock: threading.Lock
+) -> list:
     """Context tools for the given domain. general additionally gets search_knowledge_base -
     the one genuinely domain-specific real data source available (a static FAQ). Every other
     domain, and an unclassified complaint (agent_id is None), gets the shared set only."""
-    tools = build_context_tools(db, complaint, as_of)
+    tools = build_context_tools(db, complaint, as_of, lock)
     if agent_id == "general":
         tools = [*tools, _knowledge_base_tool()]
     return tools
 
 
-def build_action_item_tool(db: Session, complaint: Complaint, run_id: int):
+def build_action_item_tool(db: Session, complaint: Complaint, run_id: int, lock: threading.Lock):
     """The only tool bound to the "Get context" button. Every call records one action item;
     call it once per distinct action, in the order staff should tackle them."""
 
@@ -176,26 +190,28 @@ def build_action_item_tool(db: Session, complaint: Complaint, run_id: int):
             description: what staff should do, in one sentence.
             rationale: why this action, in one short phrase.
         """
-        rank = db.query(ActionItem).filter_by(complaint_id=complaint.complaint_id).count() + 1
-        db.add(ActionItem(
-            complaint_id=complaint.complaint_id, run_id=run_id, action_type=action_type,
-            description=description, rationale=rationale, rank=rank,
-        ))
-        db.flush()
+        with lock:
+            rank = db.query(ActionItem).filter_by(complaint_id=complaint.complaint_id).count() + 1
+            db.add(ActionItem(
+                complaint_id=complaint.complaint_id, run_id=run_id, action_type=action_type,
+                description=description, rationale=rationale, rank=rank,
+            ))
+            db.flush()
         return "Action item recorded."
 
     return create_action_brief
 
 
-def build_draft_tool(db: Session, complaint: Complaint, run_id: int):
+def build_draft_tool(db: Session, complaint: Complaint, run_id: int, lock: threading.Lock):
     """The only tool bound to the "Generate draft" button. The draft is saved for staff to
     review, edit and send themselves - it is never sent automatically."""
 
     @tool
     def save_draft_reply(body: str) -> str:
         """Save a drafted reply to the customer for this complaint."""
-        db.add(DraftResponse(complaint_id=complaint.complaint_id, run_id=run_id, body=body))
-        db.flush()
+        with lock:
+            db.add(DraftResponse(complaint_id=complaint.complaint_id, run_id=run_id, body=body))
+            db.flush()
         return "Draft saved for staff review."
 
     return save_draft_reply

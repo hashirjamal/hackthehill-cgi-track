@@ -2,6 +2,7 @@
 tables shaped like the dashboard views' output columns (not the real Postgres view SQL) - the
 queries here are plain SELECT ... WHERE ..., so only the column names matter, matching the
 precedent already set elsewhere in this test suite for testing view-backed queries."""
+import threading
 from datetime import date
 
 from sqlalchemy import create_engine, text
@@ -17,6 +18,7 @@ from app.db import Base
 from app.models import ActionItem, Complaint, DraftResponse
 
 AS_OF = date(2026, 9, 30)
+_LOCK = threading.Lock()  # tests run single-threaded; a shared lock just matches the real call shape
 
 
 def _db():
@@ -56,7 +58,7 @@ def _tool(tools, name):
 
 def test_read_case_describes_the_complaints_own_fields():
     for db in _db():
-        tools = build_context_tools(db, _complaint(), AS_OF)
+        tools = build_context_tools(db, _complaint(), AS_OF, _LOCK)
         result = _tool(tools, "read_case").invoke({})
         assert "NW-1" in result and "Billing - disputed amount" in result
         assert "priority P3" in result and "target 20 days" in result
@@ -65,13 +67,13 @@ def test_read_case_describes_the_complaints_own_fields():
 
 def test_read_case_notes_a_transfer():
     for db in _db():
-        tools = build_context_tools(db, _complaint(transferred_between_systems=True), AS_OF)
+        tools = build_context_tools(db, _complaint(transferred_between_systems=True), AS_OF, _LOCK)
         assert "transferred between systems" in _tool(tools, "read_case").invoke({})
 
 
 def test_get_account_complaints_returns_a_message_when_there_is_no_history():
     for db in _db():
-        tools = build_context_tools(db, _complaint(), AS_OF)
+        tools = build_context_tools(db, _complaint(), AS_OF, _LOCK)
         assert _tool(tools, "get_account_complaints").invoke({}) == "No other complaints found for this account."
 
 
@@ -85,7 +87,7 @@ def test_get_account_complaints_lists_other_complaints_excluding_the_current_one
             "INSERT INTO v_account_history VALUES "
             "('ACC-1', 'NW-0', '2026-01-01', 'Other', 'Closed', 'Information provided')"
         ))
-        tools = build_context_tools(db, _complaint(), AS_OF)
+        tools = build_context_tools(db, _complaint(), AS_OF, _LOCK)
         result = _tool(tools, "get_account_complaints").invoke({})
         assert "NW-0" in result and "Information provided" in result
         assert "NW-1" not in result  # the current complaint is excluded
@@ -93,7 +95,7 @@ def test_get_account_complaints_lists_other_complaints_excluding_the_current_one
 
 def test_get_case_profile_returns_a_message_with_no_matching_history():
     for db in _db():
-        tools = build_context_tools(db, _complaint(), AS_OF)
+        tools = build_context_tools(db, _complaint(), AS_OF, _LOCK)
         assert (
             _tool(tools, "get_case_profile").invoke({})
             == "No matching case history for this category, region and system."
@@ -106,7 +108,7 @@ def test_get_case_profile_reports_the_matching_row():
             "INSERT INTO v_case_profile VALUES ('Billing - disputed amount', 'Ashford', 'SYS-01', 100, "
             "12.5, 0.3, 0.1, 0.05, 0.2, 'Bill corrected and re-issued')"
         ))
-        tools = build_context_tools(db, _complaint(), AS_OF)
+        tools = build_context_tools(db, _complaint(), AS_OF, _LOCK)
         result = _tool(tools, "get_case_profile").invoke({})
         assert "100 similar closed cases" in result
         assert "Bill corrected and re-issued" in result
@@ -114,14 +116,14 @@ def test_get_case_profile_reports_the_matching_row():
 
 def test_get_region_meter_picture_returns_a_message_with_no_data():
     for db in _db():
-        tools = build_context_tools(db, _complaint(), AS_OF)
+        tools = build_context_tools(db, _complaint(), AS_OF, _LOCK)
         assert _tool(tools, "get_region_meter_picture").invoke({}) == "No meter data for this region and month."
 
 
 def test_get_region_meter_picture_reports_the_current_month():
     for db in _db():
         db.execute(text("INSERT INTO v_region_meter_complaints VALUES ('Ashford', '2026-09', 0.2, 0.8, 5.0)"))
-        tools = build_context_tools(db, _complaint(), AS_OF)
+        tools = build_context_tools(db, _complaint(), AS_OF, _LOCK)
         result = _tool(tools, "get_region_meter_picture").invoke({})
         assert "20%" in result and "80%" in result
 
@@ -129,33 +131,33 @@ def test_get_region_meter_picture_reports_the_current_month():
 def test_context_tools_for_unclassified_or_non_general_domains_has_no_knowledge_base():
     for db in _db():
         for agent_id in (None, "billing", "metering", "field_services", "customer_support"):
-            names = {t.name for t in build_context_tools_for(agent_id, db, _complaint(), AS_OF)}
+            names = {t.name for t in build_context_tools_for(agent_id, db, _complaint(), AS_OF, _LOCK)}
             assert names == {"read_case", "get_account_complaints", "get_case_profile", "get_region_meter_picture"}
 
 
 def test_context_tools_for_general_adds_the_knowledge_base():
     for db in _db():
-        names = {t.name for t in build_context_tools_for("general", db, _complaint(), AS_OF)}
+        names = {t.name for t in build_context_tools_for("general", db, _complaint(), AS_OF, _LOCK)}
         assert "search_knowledge_base" in names
 
 
 def test_search_knowledge_base_matches_a_known_question():
     for db in _db():
-        tools = build_context_tools_for("general", db, _complaint(), AS_OF)
+        tools = build_context_tools_for("general", db, _complaint(), AS_OF, _LOCK)
         answer = _tool(tools, "search_knowledge_base").invoke({"question": "How do I pay my bill this month?"})
         assert "online, phone, bank transfer" in answer
 
 
 def test_search_knowledge_base_has_no_answer_for_an_unrelated_question():
     for db in _db():
-        tools = build_context_tools_for("general", db, _complaint(), AS_OF)
+        tools = build_context_tools_for("general", db, _complaint(), AS_OF, _LOCK)
         answer = _tool(tools, "search_knowledge_base").invoke({"question": "What is the weather like today?"})
         assert answer == "No approved answer for this question in the knowledge base. Hand the case to a person."
 
 
 def test_create_action_brief_writes_an_action_item_with_increasing_rank():
     for db in _db():
-        create_action_brief = build_action_item_tool(db, _complaint(), run_id=1)
+        create_action_brief = build_action_item_tool(db, _complaint(), run_id=1, lock=_LOCK)
         create_action_brief.invoke({"action_type": "correct_bill", "description": "Reissue the bill",
                                      "rationale": "Estimated read"})
         create_action_brief.invoke({"action_type": "call_customer", "description": "Call to confirm",
@@ -168,7 +170,7 @@ def test_create_action_brief_writes_an_action_item_with_increasing_rank():
 
 def test_save_draft_reply_writes_a_draft_response_row_linked_to_the_run():
     for db in _db():
-        save_draft_reply = build_draft_tool(db, _complaint(), run_id=7)
+        save_draft_reply = build_draft_tool(db, _complaint(), run_id=7, lock=_LOCK)
         result = save_draft_reply.invoke({"body": "We're sorry for the delay."})
         assert result == "Draft saved for staff review."
         draft = db.query(DraftResponse).filter_by(complaint_id="NW-1").one()

@@ -1,3 +1,4 @@
+import threading
 import uuid
 from datetime import date, datetime, timezone
 
@@ -113,13 +114,22 @@ def get_context(complaint_id: str, db: Session = Depends(get_db)):
 
     model = _build_agent_model()
     run = _start_run(db, complaint_id, agent_id, model)
+    # One lock per call, shared by every tool bound to it - LangGraph's ToolNode dispatches every
+    # tool call (even a single one) through a thread pool, and one SQLAlchemy Session is not
+    # safe for concurrent use across threads (confirmed live: reproduced "Session is already
+    # flushing" without this).
+    lock = threading.Lock()
     tools = [
-        *build_context_tools_for(agent_id, db, complaint, as_of),
-        build_action_item_tool(db, complaint, run.run_id),
+        *build_context_tools_for(agent_id, db, complaint, as_of, lock),
+        build_action_item_tool(db, complaint, run.run_id, lock),
     ]
     _run_and_finish(run, model, cfg, tools, GET_CONTEXT_INSTRUCTION)
 
     items = db.query(ActionItem).filter_by(run_id=run.run_id).order_by(ActionItem.rank).all()
+    if run.status == "succeeded" and not items:
+        # The model can finish the loop without ever calling create_action_brief - e.g. it just
+        # answers in plain text instead. "No exception" is not the same as "did what was asked".
+        run.status, run.error = "failed", "The agent did not record any action items."
     db.commit()
     return ContextResponse(
         run_id=run.run_id,
@@ -146,13 +156,18 @@ def generate_draft(complaint_id: str, db: Session = Depends(get_db)):
 
     model = _build_agent_model()
     run = _start_run(db, complaint_id, agent_id, model)
+    lock = threading.Lock()  # see get_context() above for why this is needed
     tools = [
-        *build_context_tools_for(agent_id, db, complaint, as_of),
-        build_draft_tool(db, complaint, run.run_id),
+        *build_context_tools_for(agent_id, db, complaint, as_of, lock),
+        build_draft_tool(db, complaint, run.run_id, lock),
     ]
     _run_and_finish(run, model, cfg, tools, GENERATE_DRAFT_INSTRUCTION)
 
     draft = db.query(DraftResponse).filter_by(run_id=run.run_id).order_by(DraftResponse.draft_id.desc()).first()
+    if run.status == "succeeded" and draft is None:
+        # Same reasoning as get_context() above: the model can finish without ever calling
+        # save_draft_reply, and that must not be reported as success.
+        run.status, run.error = "failed", "The agent did not save a draft."
     db.commit()
     return DraftOut(
         run_id=run.run_id,

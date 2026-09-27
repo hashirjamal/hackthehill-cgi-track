@@ -212,7 +212,14 @@ def test_get_context_for_an_unclassified_complaint_still_works(monkeypatch):
     db.commit()
     db.close()
 
-    fake = ScriptedChatModel(responses=[AIMessage(content="No actions needed.")])
+    fake = ScriptedChatModel(responses=[
+        AIMessage(content="", tool_calls=[{
+            "name": "create_action_brief",
+            "args": {"action_type": "review", "description": "Review the case", "rationale": "Not yet classified"},
+            "id": "1",
+        }]),
+        AIMessage(content="Done."),
+    ])
     monkeypatch.setattr("app.complaint_routes._build_agent_model", lambda: fake)
 
     response = client.post("/complaints/NW-2/context")
@@ -223,3 +230,43 @@ def test_get_context_for_an_unclassified_complaint_still_works(monkeypatch):
     run = db.query(AgentRun).filter_by(complaint_id="NW-2").one()
     assert run.agent_id == "general"
     db.close()
+
+
+def test_get_context_reports_failed_when_the_model_never_calls_create_action_brief(monkeypatch):
+    # Finishing without an exception is not the same as doing what was asked - a model that just
+    # answers in plain text instead of calling the tool must not be reported as a success.
+    client, TestSession = _client(monkeypatch)
+    db = TestSession()
+    db.add(_complaint())
+    db.add(_current_classification("NW-1", "Billing"))
+    db.commit()
+    db.close()
+
+    fake = ScriptedChatModel(responses=[AIMessage(content="I looked into it but have no recommendation.")])
+    monkeypatch.setattr("app.complaint_routes._build_agent_model", lambda: fake)
+
+    response = client.post("/complaints/NW-1/context")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "failed"
+    assert "did not record any action items" in body["error"]
+    assert body["action_items"] == []
+
+
+def test_generate_draft_reports_failed_when_the_model_never_calls_save_draft_reply(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    db = TestSession()
+    db.add(_complaint())
+    db.add(_current_classification("NW-1", "Billing"))
+    db.commit()
+    db.close()
+
+    fake = ScriptedChatModel(responses=[AIMessage(content="I'm not sure what to say here.")])
+    monkeypatch.setattr("app.complaint_routes._build_agent_model", lambda: fake)
+
+    response = client.post("/complaints/NW-1/draft")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "failed"
+    assert "did not save a draft" in body["error"]
+    assert body["body"] is None
