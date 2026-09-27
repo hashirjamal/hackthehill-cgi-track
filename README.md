@@ -130,3 +130,36 @@ has rows.
 
 `days open` is measured to the first of: the request's `as_of_date`, `AS_OF_DATE` in `.env`, `app_settings.as_of_date`
 in the database, today.
+
+## Reporting APIs
+
+`GET /reports/...` feeds the dashboards. They read the SQL views in `db/views.sql`, so they need the Postgres
+database (not the local SQLite one). Interactive docs: `/docs`.
+
+| Endpoint | Returns |
+|---|---|
+| `/reports/worklist` | Open complaints ranked by priority and days overdue, with their classification |
+| `/reports/backlog-flow` | Opened, closed and running backlog per month |
+| `/reports/backlog-breakdown` | The open backlog grouped by any of region, category, domain, priority, age band, channel, source system |
+| `/reports/root-cause` | Estimated-read rate against billing and metering complaints, by region and month |
+| `/reports/root-cause/clusters` | Open complaints by region and category next to the region's meter data |
+| `/reports/cases` | Search every complaint, open or closed |
+| `/reports/cases/{complaint_id}` | One complaint with its classification, meter data, history profile, account history, drafts and actions (a single record, so no pagination of its own; `history_limit` caps the account history) |
+| `/reports/account-history` | Complaints per account with repeat information |
+| `/reports/agent-results` | Classified cases, runs and drafts per AI agent |
+| `/reports/classifications/summary` | Classification results grouped by group, lane, team, priority and so on |
+| `/reports/case-profiles` | Historic outcomes per category, region and source system |
+
+Every list endpoint takes the same query parameters:
+
+- **Pagination:** `page` (from 1) and `page_size` (default 25, at most 200). The response has `items`, `page`,
+  `page_size`, `total` (rows matching the filters), `total_pages` and `sort`. A page past the end returns no items.
+- **Sorting:** `sort=name:desc,name2` (direction defaults to `asc`, nulls last). Only the names listed in each
+  endpoint's docs are accepted, anything else is a 422. A tie-breaker keeps pages stable.
+- **Filtering:** repeat a parameter for several values (`region=Ashford&region=Fenwick`), `*_min` and `*_max` for
+  ranges, `*_from` and `*_to` for dates, `true` or `false` for flags, and `q` for an id prefix search. A filter that
+  matches nothing returns an empty page. Flags that can be unknown (for example `low_confidence` on an unclassified
+  case) match only known values.
+- **Grouping** (`backlog-breakdown`, `classifications/summary`): repeat `group_by`; each row has those columns plus the metrics.
+
+Tests: `tests/test_reports_query.py` covers the shared helper without a database.
