@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     agent_enabled: bool = True  # False uses the template fallback everywhere (requirement N6)
     agent_model: str = "gemma3"
     ollama_host: str = "http://localhost:11434"
+    agent_timeout_seconds: float = 30.0  # per Ollama call; a timeout marks that run failed, the batch goes on
 
 
 settings = Settings()

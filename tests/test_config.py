@@ -33,3 +33,4 @@ def test_agent_settings_have_working_defaults():
     assert s.agent_enabled is True
     assert s.agent_model == "gemma3"
     assert s.ollama_host == "http://localhost:11434"
+    assert s.agent_timeout_seconds == 30.0

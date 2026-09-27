@@ -20,7 +20,9 @@ router = APIRouter(prefix="/complaints", tags=["complaints"])
 
 def _agent_backend():
     if settings.agent_enabled:
-        return OllamaBackend(model=settings.agent_model, host=settings.ollama_host)
+        return OllamaBackend(
+            model=settings.agent_model, host=settings.ollama_host, timeout=settings.agent_timeout_seconds
+        )
     return TemplateBackend()
 
 

@@ -103,7 +103,8 @@ with no draft.
 
 By default it calls a local [Ollama](https://ollama.com) model with structured output (`OLLAMA_HOST`,
 default `http://localhost:11434`; `AGENT_MODEL`, default `gemma3` - pull whatever model you actually
-run with `ollama pull <model>` and set `AGENT_MODEL` to match). Set `AGENT_ENABLED=false` to use the
+run with `ollama pull <model>` and set `AGENT_MODEL` to match; `AGENT_TIMEOUT_SECONDS`, default `30.0`,
+per call - a call that takes longer is recorded as a failed run). Set `AGENT_ENABLED=false` to use the
 template fallback instead (no LLM call at all - requirement N6's confidentiality fallback), which is
 also what the test suite uses so it never needs a running Ollama server.
 

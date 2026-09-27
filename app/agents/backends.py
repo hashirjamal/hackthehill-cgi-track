@@ -62,9 +62,12 @@ class TemplateBackend:
 class OllamaBackend:
     """Calls a local Ollama model. `client` is injectable for tests (see tests/test_agent_backends.py)."""
 
-    def __init__(self, model: str, host: str, client: Any | None = None):
+    def __init__(self, model: str, host: str, client: Any | None = None, timeout: float = 30.0):
         self.model_name = model
-        self._client = client if client is not None else ollama.Client(host=host)
+        # ollama.Client's own timeout defaults to None (wait forever), which would let a hung server
+        # hold the request and its database transaction open indefinitely. A timeout surfaces as an
+        # exception from chat(), so it becomes an AgentBackendError like any other call failure.
+        self._client = client if client is not None else ollama.Client(host=host, timeout=timeout)
 
     def draft(self, cfg: AgentConfig, complaint: ComplaintIn, context: AgentContext) -> AgentDraftOutput:
         messages = [

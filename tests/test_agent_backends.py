@@ -51,6 +51,22 @@ def test_template_backend_drafts_a_reply_for_mostly_information_only_categories(
     assert out.draft_reply is not None
 
 
+def test_ollama_backend_gives_its_default_client_a_timeout():
+    # No request is made here; this only builds the real ollama.Client (an httpx client underneath).
+    backend = OllamaBackend(model="gemma3", host="http://localhost:11434", timeout=12.5)
+    assert backend._client._client.timeout.read == 12.5
+
+
+def test_the_route_passes_the_timeout_setting_to_the_ollama_backend(monkeypatch):
+    from app.complaint_routes import _agent_backend
+
+    monkeypatch.setattr("app.complaint_routes.settings.agent_enabled", True)
+    monkeypatch.setattr("app.complaint_routes.settings.agent_timeout_seconds", 7.0)
+    backend = _agent_backend()
+    assert isinstance(backend, OllamaBackend)
+    assert backend._client._client.timeout.read == 7.0
+
+
 def test_ollama_backend_sends_the_configured_model_and_a_json_schema_format():
     valid = json.dumps({"draft_reply": None, "action_items": []})
     client = FakeOllamaClient(content=valid)
