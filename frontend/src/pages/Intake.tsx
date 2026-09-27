@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { useIntake, type IntakeComplaint, type IntakeResult } from '../api/reports'
 import Badge, { LaneBadge, PriorityBadge } from '../components/Badge'
 import Card, { CardTitle } from '../components/Card'
-import { Button, Select } from '../components/Controls'
+import { Button, SegmentedControl, Select } from '../components/Controls'
 import PageHeader from '../components/PageHeader'
 import { CHANNELS, REGIONS } from '../constants'
 import { humanize } from '../lib/format'
@@ -26,7 +26,10 @@ function Result({ result }: { result: IntakeResult }) {
   const c = result.classification
   return (
     <Card>
-      <CardTitle title={`Logged as ${result.complaint_id}`} hint="Classified by Laya and on the worklist now." />
+      <CardTitle
+        title={`Logged as ${result.complaint_id}`}
+        hint={`${c.classifier_version.startsWith('keywords') ? 'Classified by keyword rules (no AI)' : 'Classified by Laya'} and on the worklist now.`}
+      />
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div>
           <dt className="text-xs font-medium text-gray-500">Group</dt>
@@ -68,14 +71,18 @@ function Result({ result }: { result: IntakeResult }) {
 /** The intake template the four intake systems fill in. Laya reads the text, so the text matters most. */
 export default function Intake() {
   const [form, setForm] = useState<IntakeComplaint>(EMPTY)
+  const [mode, setMode] = useState<'ai' | 'rules'>('ai')
   const intake = useIntake()
   const set = (key: keyof IntakeComplaint) => (value: string) => setForm((f) => ({ ...f, [key]: value }))
   const ready = form.account_id.trim() !== '' && form.text.trim() !== '' && form.region !== ''
 
   const submit = () =>
-    intake.mutate(form, {
-      onSuccess: () => setForm(EMPTY),
-    })
+    intake.mutate(
+      { complaint: form, mode },
+      {
+        onSuccess: () => setForm(EMPTY),
+      },
+    )
 
   return (
     <div className="space-y-6">
@@ -103,6 +110,17 @@ export default function Intake() {
               placeholder="e.g. My bill is twice what it usually is. I think it's an estimate - nobody has read the meter in months. I can't afford to pay it."
             />
           </label>
+        </div>
+        <div className="mt-5">
+          <SegmentedControl
+            label="Classify with"
+            options={[
+              { value: 'ai', label: 'Laya (local AI)' },
+              { value: 'rules', label: 'Keyword rules (no AI, less accurate)' },
+            ]}
+            value={mode}
+            onChange={(v) => setMode(v as 'ai' | 'rules')}
+          />
         </div>
         <div className="mt-5 flex items-center gap-3">
           <Button onClick={submit} disabled={!ready || intake.isPending}>

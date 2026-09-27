@@ -65,8 +65,12 @@ def classify_complaint(
     as_of: date,
     laya: Any,
     cfg: Settings = settings,
+    classifier_version: str = CLASSIFIER_VERSION,
 ) -> tuple[ClassificationResult, dict]:
-    """Classify one complaint. Returns the result and Laya's raw answers (kept for the audit trail)."""
+    """Classify one complaint. Returns the result and Laya's raw answers (kept for the audit trail).
+
+    `laya` is anything with Laya's predict(state, questions) - the real model, or the no-AI
+    app/classification/keywords.KeywordModel (with its own classifier_version)."""
     state = render_state(complaint)
     raw: dict[str, Any] = {"state": state}
 
@@ -76,7 +80,7 @@ def classify_complaint(
         team, lane = rules.emergency_route()
         return ClassificationResult(
             complaint_id=complaint_id,
-            classifier_version=CLASSIFIER_VERSION,
+            classifier_version=classifier_version,
             emergency=True,
             emergency_probability=emergency_p,
             priority=PriorityOut(
@@ -141,7 +145,7 @@ def classify_complaint(
     data_category = complaint.category
     return ClassificationResult(
         complaint_id=complaint_id,
-        classifier_version=CLASSIFIER_VERSION,
+        classifier_version=classifier_version,
         emergency=False,
         emergency_probability=emergency_p,
         group=GroupOut(

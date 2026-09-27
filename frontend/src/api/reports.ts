@@ -163,6 +163,7 @@ export interface IntakeResult {
   category: string
   as_of_date: string
   classification: {
+    classifier_version: string
     emergency: boolean
     group: { name: string; confidence: number } | null
     priority: { level: 'P1' | 'P2' | 'P3'; target_days: number; raised_by: string[] }
@@ -177,10 +178,11 @@ const INTAKE_TOAST = 'intake'
 export function useIntake() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (complaint: IntakeComplaint) =>
-      apiPost<IntakeResult>('/complaints/intake', complaint, { timeoutMs: CLASSIFY_TIMEOUT_MS }),
+    mutationFn: ({ complaint, mode }: { complaint: IntakeComplaint; mode: 'ai' | 'rules' }) =>
+      apiPost<IntakeResult>(`/complaints/intake?mode=${mode}`, complaint, { timeoutMs: CLASSIFY_TIMEOUT_MS }),
     meta: { errorTitle: "Couldn't log the complaint", toastId: INTAKE_TOAST },
-    onMutate: () => toastLoading('Classifying the complaint', 'Laya is reading it. This takes a few seconds.', INTAKE_TOAST),
+    onMutate: ({ mode }) =>
+      toastLoading('Classifying the complaint', mode === 'ai' ? 'Laya is reading it. This takes a few seconds.' : 'Keyword rules, no AI.', INTAKE_TOAST),
     onSuccess: (r) => {
       toastSuccess(`Logged ${r.complaint_id}`, `${r.classification.priority.level} · ${r.classification.routing.team}`, INTAKE_TOAST)
       void queryClient.invalidateQueries({ queryKey: [REPORTS] })
