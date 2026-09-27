@@ -111,9 +111,12 @@ automatically). Every message, in both directions, is logged to `chat_sessions` 
 audit. A conversation is per visit - reopening the same complaint later starts a new session, not a
 continuation.
 
-Billing is the only domain with tools implemented so far (`app/agents/tools.py`): pulling the
-account's other complaints, the historic pattern for this category/region/system, and the region's
-meter picture. Other domains get a plain chat with no lookups until their tools are built the same way.
+Every domain shares four tools (`app/agents/tools.py`'s `build_shared_tools`): pulling the
+account's other complaints, the historic pattern for this category/region/system, the region's
+meter picture, and saving a draft reply. None of the three read tools reference anything
+domain-specific - they just look up whatever complaint is open - so there was no reason to build
+them five times. General additionally gets `search_knowledge_base`, a small static FAQ lookup for
+general information questions ("how do I pay my bill?" and similar).
 
 By default it calls a local [Ollama](https://ollama.com) model (`OLLAMA_HOST`, default
 `http://localhost:11434`; `AGENT_MODEL`, default `gemma4` - **gemma3 has no tool-calling support in

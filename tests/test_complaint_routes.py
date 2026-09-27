@@ -166,17 +166,19 @@ def test_chat_runs_the_scripted_model_with_the_billing_tools_and_can_save_a_draf
     db.close()
 
 
-def test_chat_with_a_domain_that_has_no_tools_yet_still_works(monkeypatch):
+def test_chat_with_an_unclassified_complaint_still_works_with_no_tools(monkeypatch):
+    # No current Classification row at all (e.g. classification hasn't run yet) - agent_id and
+    # cfg both resolve to None, so the chat gets no tools and the generic default system prompt,
+    # but the endpoint still works rather than erroring.
     client, TestSession = _client(monkeypatch)
     db = TestSession()
     db.add(_complaint(complaint_id="NW-2", category="Metering - no read taken"))
-    db.add(_current_classification("NW-2", "Metering"))
     db.commit()
     db.close()
 
-    fake = ScriptedChatModel(responses=[AIMessage(content="No meter tools exist yet, but I can still chat.")])
+    fake = ScriptedChatModel(responses=[AIMessage(content="This case isn't classified yet, but I can still chat.")])
     monkeypatch.setattr("app.complaint_routes._build_chat_model", lambda: fake)
 
     response = client.post("/complaints/NW-2/chat", json={"message": "What's up with this case?"})
     assert response.status_code == 200
-    assert response.json()["reply"] == "No meter tools exist yet, but I can still chat."
+    assert response.json()["reply"] == "This case isn't classified yet, but I can still chat."

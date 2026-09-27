@@ -55,7 +55,7 @@ explicitly ask for a draft.
 | File | Job |
 |---|---|
 | `app/agents/config.py` | **Edit this for real prompt wording.** `AGENT_CONFIGS` has one entry per domain with a working-but-generic system prompt, unchanged in shape from before. |
-| `app/agents/tools.py` | `TOOL_BUILDERS` maps `agent_id -> factory(db, complaint, as_of) -> [tools]`. **Only `"billing"` has tools right now**: `get_account_complaints`, `get_case_profile`, `get_region_meter_picture` (all read-only, zero-argument, scoped to the current complaint), and `save_draft_reply(body)`. Every other domain gets `[]` — still a working chat, just no lookups, until its tools are built the same way. |
+| `app/agents/tools.py` | `TOOL_BUILDERS` maps `agent_id -> factory(db, complaint, as_of) -> [tools]`. Every domain shares four tools (`build_shared_tools`): `get_account_complaints`, `get_case_profile`, `get_region_meter_picture` (all read-only, zero-argument, scoped to the current complaint), and `save_draft_reply(body)` — none of the three read tools reference anything domain-specific, so there was no reason to duplicate them per domain. `general` additionally gets `search_knowledge_base(question)`, a small static FAQ (the team's own knowledge-base examples), since that's the one genuinely domain-specific real data source available right now. |
 | `app/agents/chat.py` | `run_chat_turn(model, cfg, tools, history, message)` — one turn: builds messages, runs `create_agent`, extracts the final reply and whether `save_draft_reply` was called. |
 | `app/agents/schemas.py` | `ChatRequest`/`ChatResponse`/`ChatTurnIn` — the endpoint's request/response shape. |
 | `app/complaint_routes.py` | `POST /complaints/{complaint_id}/chat` — the actual wiring: 404 if the complaint doesn't exist, resolves the domain, creates the `ChatSession`, calls the model (or the N6 fallback message if `AGENT_ENABLED=false`), logs both messages. |
@@ -113,8 +113,10 @@ pointed at, so they weren't applied without asking first.
 - **Staff auth** — no login, no real staff identity; everything defaults to the one placeholder row.
 - **Approve/edit/send flow for a saved draft** — `DraftResponse` rows get created (`status='draft'`)
   but nothing in the frontend or backend yet lets staff mark one approved/edited/sent.
-- Domain agent tools for metering, field_services, customer_support, general — same pattern as
-  billing's (`app/agents/tools.py`), just not written yet.
+- Domain-specific tools beyond the shared four — there's no real per-domain backing data yet
+  (no per-account bill/appointment/outage tables), so metering/field_services/customer_support
+  don't have anything beyond the shared set. If a real domain-specific data source shows up later,
+  add its tool the same way `search_knowledge_base` was added to `general`.
 - Staff chat assistant beyond one complaint (requirements section F: "what happened on this
   account before?" as a general, not-complaint-scoped question) — out of scope of what's here.
 
