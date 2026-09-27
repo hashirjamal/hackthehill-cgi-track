@@ -13,7 +13,8 @@ class FakeLaya:
     def predict(self, state, questions, model=None):
         answers = {}
         if "emergency" in questions:
-            return {"answers": {"emergency": {"noul": 0.0}}}
+            # Complaint text mentioning a gas leak screens as an emergency; nothing else does.
+            return {"answers": {"emergency": {"noul": 0.95 if "gas leak" in state else 0.0}}}
         if "subcategory" in questions:
             names = list(questions["subcategory"]["criteria"])
             return {"answers": {"subcategory": {"probabilities": {n: 1.0 / len(names) for n in names}}}}
@@ -149,3 +150,34 @@ def test_a_database_error_in_the_agent_step_keeps_the_batch_classifications(monk
     assert db.query(AgentRun).count() == 0  # the savepoint rolled back the half-written run
     db.close()
     assert "Agent step failed for complaint NW-5" in caplog.text
+
+
+class FailingBackend:
+    model_name = "fake-failure"
+
+    def draft(self, cfg, complaint, context):
+        from app.agents.backends import AgentBackendError
+        raise AgentBackendError("the model is not running")
+
+
+def test_a_mixed_batch_with_a_failing_agent_and_an_emergency_still_returns_200(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    monkeypatch.setattr("app.complaint_routes._agent_backend", lambda: FailingBackend())
+    response = client.post("/complaints/process", json={
+        "as_of_date": "2026-09-30",
+        "complaints": [
+            {"complaint_id": "NW-7", "category": "Billing - disputed amount", "account_id": "ACC-7"},
+            {"complaint_id": "NW-8", "text": "I can smell a gas leak outside my house", "account_id": "ACC-8"},
+        ],
+    })
+    assert response.status_code == 200
+    by_id = {r["complaint_id"]: r for r in response.json()["results"]}
+    assert by_id["NW-8"]["emergency"] is True
+
+    db = TestSession()
+    failed = db.query(AgentRun).filter_by(complaint_id="NW-7").one()
+    assert failed.status == "failed"
+    assert "not running" in failed.error
+    assert db.query(AgentRun).filter_by(complaint_id="NW-8").count() == 0
+    assert db.query(AgentRun).count() == 1
+    db.close()
