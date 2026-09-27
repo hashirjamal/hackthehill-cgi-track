@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Badge from '../components/Badge'
 import Card, { CardTitle } from '../components/Card'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
@@ -96,6 +97,7 @@ export default function Simulator() {
       <PageHeader
         title="Simulator"
         description="What the system is worth: move the levers we control and see the effect on resolution time, cost and the regulator score."
+        actions={<Badge tone="amber" dot={false}>Preview calculation</Badge>}
       />
 
       <div className="grid gap-4 lg:grid-cols-3">

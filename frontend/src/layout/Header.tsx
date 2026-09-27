@@ -1,7 +1,6 @@
 import { CalendarDays, Menu, Search, User } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Badge from '../components/Badge'
 
 export default function Header({ onMenu }: { onMenu: () => void }) {
   const [id, setId] = useState('')
@@ -31,7 +30,6 @@ export default function Header({ onMenu }: { onMenu: () => void }) {
       </form>
 
       <div className="ml-auto flex items-center gap-3">
-        <Badge tone="amber" dot={false}>Sample data</Badge>
         <span className="hidden items-center gap-1.5 text-xs text-gray-500 sm:flex">
           <CalendarDays className="h-4 w-4 text-brand" />
           As of 30 Sep 2026

@@ -1,9 +1,13 @@
 import { X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '../lib/cn'
+import { useWorklistTotal } from '../api/reports'
+import { num } from '../lib/format'
 import { navGroups } from '../nav'
 
 export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+  // The same query as the Worklist's first stat card, so it is asked for once.
+  const openCount = useWorklistTotal({}, 'the summary numbers')
   return (
     <>
       {open && <div className="fixed inset-0 z-20 bg-gray-900/30 md:hidden" onClick={onClose} aria-hidden />}
@@ -53,7 +57,9 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
           ))}
         </nav>
 
-        <p className="px-3 pt-4 text-xs text-gray-500">1,599 open complaints as of 30 Sep 2026</p>
+        <p className="px-3 pt-4 text-xs text-gray-500">
+          {openCount.isSuccess ? `${num(openCount.data)} open complaints as of 30 Sep 2026` : 'Data as of 30 Sep 2026'}
+        </p>
       </aside>
     </>
   )
