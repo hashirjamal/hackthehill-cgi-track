@@ -4,8 +4,12 @@ FastAPI + SQLAlchemy backend, connected to Tiger Data (or any Postgres).
 
 ## Setup
 
+Requires Python 3.10+ (the code uses `X | None` type hints). On macOS, the system `python3` is often
+3.9, which fails to import this code — check with `python3 --version` and use a newer interpreter
+(e.g. `python3.12`, via Homebrew: `brew install python@3.12`) if so.
+
 ```bash
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # then set DATABASE_URL
