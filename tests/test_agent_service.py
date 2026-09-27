@@ -121,3 +121,18 @@ def test_emergency_complaints_skip_the_agent_entirely():
     db.commit()
     assert run is None
     assert db.query(AgentRun).count() == 0
+
+
+def test_a_complaint_not_yet_in_the_complaints_table_still_gets_an_agent_run():
+    # The endpoint also classifies new complaints that are not in `complaints` yet (like
+    # `classifications`, the agent tables have no FK on complaint_id). SQLite ignores FKs unless
+    # asked, so turn enforcement on to match Postgres; ai_agents does need the referenced row.
+    db = _db()
+    db.execute(text("PRAGMA foreign_keys=ON"))
+    db.execute(text("INSERT INTO ai_agents (agent_id, name, active) VALUES ('billing', 'Billing', 1)"))
+    complaint = ComplaintIn(complaint_id="NW-1", category="Billing - disputed amount", account_id="ACC-1")
+    run = run_domain_agent(db, complaint, _classification(), AS_OF, backend=SucceedingBackend())
+    db.commit()
+    assert run.status == "succeeded"
+    assert db.query(DraftResponse).filter_by(complaint_id="NW-1").count() == 1
+    assert db.query(ActionItem).filter_by(complaint_id="NW-1").count() == 1

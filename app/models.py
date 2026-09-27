@@ -226,9 +226,6 @@ class Complaint(Base):
     category_ref: Mapped["Category"] = relationship(back_populates="complaints")
     region_ref: Mapped["Region"] = relationship(back_populates="complaints")
     system: Mapped["System"] = relationship(back_populates="complaints")
-    agent_runs: Mapped[list["AgentRun"]] = relationship(back_populates="complaint")
-    draft_responses: Mapped[list["DraftResponse"]] = relationship(back_populates="complaint")
-    action_items: Mapped[list["ActionItem"]] = relationship(back_populates="complaint")
     chat_sessions: Mapped[list["ChatSession"]] = relationship(back_populates="complaint")
 
 
@@ -344,7 +341,7 @@ class AgentRun(Base):
 
     # Integer on SQLite (local dev), so the key autoincrements there (see Classification.id).
     run_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
-    complaint_id: Mapped[str] = mapped_column(ForeignKey("complaints.complaint_id"))
+    complaint_id: Mapped[str] = mapped_column(String(32))  # no FK on purpose, see Classification
     agent_id: Mapped[str] = mapped_column(ForeignKey("ai_agents.agent_id"))
     classification_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("classifications.id"))
     status: Mapped[str] = mapped_column(String(16))
@@ -354,7 +351,6 @@ class AgentRun(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    complaint: Mapped["Complaint"] = relationship(back_populates="agent_runs")
     agent: Mapped["AiAgent"] = relationship(back_populates="agent_runs")
     classification: Mapped["Classification | None"] = relationship(back_populates="agent_runs")
     draft_responses: Mapped[list["DraftResponse"]] = relationship(back_populates="agent_run")
@@ -374,7 +370,7 @@ class DraftResponse(Base):
 
     # Integer on SQLite (local dev), so the key autoincrements there (see Classification.id).
     draft_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
-    complaint_id: Mapped[str] = mapped_column(ForeignKey("complaints.complaint_id"))
+    complaint_id: Mapped[str] = mapped_column(String(32))  # no FK on purpose, see Classification
     run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("agent_runs.run_id"))
     body: Mapped[str] = mapped_column(Text)  # as generated
     status: Mapped[str] = mapped_column(String(16), default="draft")
@@ -383,7 +379,6 @@ class DraftResponse(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    complaint: Mapped["Complaint"] = relationship(back_populates="draft_responses")
     agent_run: Mapped["AgentRun | None"] = relationship(back_populates="draft_responses")
     reviewer: Mapped["Staff | None"] = relationship(back_populates="drafts_reviewed")
 
@@ -402,7 +397,7 @@ class ActionItem(Base):
 
     # Integer on SQLite (local dev), so the key autoincrements there (see Classification.id).
     action_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
-    complaint_id: Mapped[str] = mapped_column(ForeignKey("complaints.complaint_id"))
+    complaint_id: Mapped[str] = mapped_column(String(32))  # no FK on purpose, see Classification
     run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("agent_runs.run_id"))
     action_type: Mapped[str] = mapped_column(Text)  # correct_bill, book_meter_read, escalate_field ...
     description: Mapped[str] = mapped_column(Text)
@@ -415,7 +410,6 @@ class ActionItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    complaint: Mapped["Complaint"] = relationship(back_populates="action_items")
     agent_run: Mapped["AgentRun | None"] = relationship(back_populates="action_items")
     assignee: Mapped["Staff | None"] = relationship(back_populates="action_items_assigned")
 
