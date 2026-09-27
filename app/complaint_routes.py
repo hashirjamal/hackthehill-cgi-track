@@ -21,7 +21,8 @@ from app.agents import rules_engine
 from app.agents.systems import NorthwindLookups, SystemsClient, build_system_tools
 from app.agents.tools import build_action_item_tool, build_context_tools_for, build_draft_tool
 from app.classification.schemas import ComplaintIn, IntakeRequest, IntakeResponse, ProcessRequest, ProcessResponse
-from app.classification.service import classify_complaint, db_as_of_date, save_classification
+from app.classification.keywords import KEYWORDS_VERSION, KeywordModel
+from app.classification.service import CLASSIFIER_VERSION, classify_complaint, db_as_of_date, save_classification
 from app.config import settings
 from app.db import get_db
 from app.laya_service import get_laya
@@ -61,7 +62,11 @@ def _next_complaint_id(db: Session) -> str:
 
 # Plain `def` for the same reason as process_complaints above.
 @router.post("/intake", response_model=IntakeResponse)
-def intake_complaint(payload: IntakeRequest, db: Session = Depends(get_db)):
+def intake_complaint(
+    payload: IntakeRequest,
+    mode: Literal["ai", "rules"] = Query("ai", description="ai (Laya) or rules (keyword rules, no AI - less accurate)"),
+    db: Session = Depends(get_db),
+):
     """A brand-new complaint from one of the four intake systems. Laya classifies it straight away -
     group, urgency and flags from the text, not from Northwind's history - and the complaint is
     saved as an open case, so it is on the worklist, ranked, the moment this returns."""
@@ -74,8 +79,12 @@ def intake_complaint(payload: IntakeRequest, db: Session = Depends(get_db)):
         source_system=payload.source_system, transferred_between_systems=False, date_opened=as_of,
         account_id=payload.account_id,
     )
+    if mode == "rules":
+        model, version = KeywordModel(), KEYWORDS_VERSION
+    else:
+        model, version = get_laya(), CLASSIFIER_VERSION
     try:
-        result, raw = classify_complaint(complaint_in, complaint_id, as_of, get_laya())
+        result, raw = classify_complaint(complaint_in, complaint_id, as_of, model, classifier_version=version)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
