@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import date
 
@@ -11,6 +12,8 @@ from app.classification.service import classify_complaint, db_as_of_date, save_c
 from app.config import settings
 from app.db import get_db
 from app.laya_service import get_laya
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/complaints", tags=["complaints"])
 
@@ -38,7 +41,14 @@ def process_complaints(payload: ProcessRequest, db: Session = Depends(get_db)):
             complaint_id = complaint.complaint_id or f"CMP-{uuid.uuid4().hex[:10]}"
             result, raw = classify_complaint(complaint, complaint_id, as_of, laya)
             result.classification_id = save_classification(db, complaint, result, raw, as_of)
-            run_domain_agent(db, complaint, result, as_of, backend=backend)
+            # A database error in the agent step (e.g. the dashboard views are missing) rolls back
+            # only this savepoint, so the classification above is kept. No AgentRun row survives to
+            # record it, hence the log line (backend failures are recorded on the row instead).
+            try:
+                with db.begin_nested():
+                    run_domain_agent(db, complaint, result, as_of, backend=backend)
+            except Exception:
+                logger.exception("Agent step failed for complaint %s", complaint_id)
             results.append(result)
         db.commit()
     except ValueError as e:

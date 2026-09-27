@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 from app.db import Base, get_db
 from app.laya_service import get_laya
 from app.main import app
-from app.models import ActionItem, AgentRun, DraftResponse
+from app.models import ActionItem, AgentRun, Classification, DraftResponse
 
 
 class FakeLaya:
@@ -28,7 +28,7 @@ class FakeLaya:
         return {"answers": answers}
 
 
-def _client(monkeypatch):
+def _client(monkeypatch, with_views=True):
     # FastAPI runs this (sync) route in a worker thread. Plain "sqlite://" defaults to
     # SingletonThreadPool, which hands that thread a *different*, empty in-memory database than
     # the one created below - StaticPool + check_same_thread=False shares the one connection
@@ -40,21 +40,23 @@ def _client(monkeypatch):
 
     # The dashboard views build_context reads (db/views.sql) only exist on Postgres; here they are
     # empty stand-in tables shaped like the view output, following the precedent set in
-    # tests/test_agent_context.py and tests/test_agent_service.py.
-    with engine.begin() as conn:
-        conn.execute(text(
-            "CREATE TABLE v_case_profile (category TEXT, region TEXT, source_system TEXT, n INT, "
-            "avg_days REAL, info_only_share REAL, transfer_rate REAL, reopen_rate REAL, breach_rate REAL, "
-            "top_resolution TEXT)"
-        ))
-        conn.execute(text(
-            "CREATE TABLE v_account_history (account_id TEXT, complaint_id TEXT, date_opened TEXT, "
-            "category TEXT, status TEXT, resolution_action TEXT, days_to_close INT, is_repeat INT)"
-        ))
-        conn.execute(text(
-            "CREATE TABLE v_region_meter_complaints (region TEXT, month TEXT, estimated_read_rate REAL, "
-            "smart_meter_penetration REAL, billing_exceptions_per_1000 REAL, billing_metering_share REAL)"
-        ))
+    # tests/test_agent_context.py and tests/test_agent_service.py. with_views=False leaves them out,
+    # like a fresh local SQLite database.
+    if with_views:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "CREATE TABLE v_case_profile (category TEXT, region TEXT, source_system TEXT, n INT, "
+                "avg_days REAL, info_only_share REAL, transfer_rate REAL, reopen_rate REAL, "
+                "breach_rate REAL, top_resolution TEXT)"
+            ))
+            conn.execute(text(
+                "CREATE TABLE v_account_history (account_id TEXT, complaint_id TEXT, date_opened TEXT, "
+                "category TEXT, status TEXT, resolution_action TEXT, days_to_close INT, is_repeat INT)"
+            ))
+            conn.execute(text(
+                "CREATE TABLE v_region_meter_complaints (region TEXT, month TEXT, estimated_read_rate REAL, "
+                "smart_meter_penetration REAL, billing_exceptions_per_1000 REAL, billing_metering_share REAL)"
+            ))
 
     TestSession = sessionmaker(bind=engine)
 
@@ -127,3 +129,23 @@ def test_a_batch_of_several_complaints_creates_an_agent_run_for_each(monkeypatch
     assert {r.complaint_id for r in runs} == {"NW-3", "NW-4"}
     assert all(r.status == "succeeded" for r in runs)
     db.close()
+
+
+def test_a_database_error_in_the_agent_step_keeps_the_batch_classifications(monkeypatch, caplog):
+    # Without the dashboard views (a fresh local SQLite DB has none), build_context fails with a
+    # database error. That must roll back only the agent step, not the batch's classifications.
+    client, TestSession = _client(monkeypatch, with_views=False)
+    response = client.post("/complaints/process", json={
+        "as_of_date": "2026-09-30",
+        "complaints": [
+            {"complaint_id": "NW-5", "category": "Other", "account_id": "ACC-5"},
+            {"complaint_id": "NW-6", "category": "Other", "account_id": "ACC-6"},
+        ],
+    })
+    assert response.status_code == 200
+
+    db = TestSession()
+    assert {c.complaint_id for c in db.query(Classification).all()} == {"NW-5", "NW-6"}
+    assert db.query(AgentRun).count() == 0  # the savepoint rolled back the half-written run
+    db.close()
+    assert "Agent step failed for complaint NW-5" in caplog.text
