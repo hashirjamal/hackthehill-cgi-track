@@ -75,10 +75,8 @@ class OllamaBackend:
             response = self._client.chat(
                 model=self.model_name, messages=messages, format=AgentDraftOutput.model_json_schema()
             )
-        except ollama.ResponseError as e:
-            raise AgentBackendError(f"Ollama returned an error: {e}") from e
-        except OSError as e:  # connection refused, DNS failure, timeout, ...
-            raise AgentBackendError(f"Could not reach Ollama at the configured host: {e}") from e
+        except Exception as e:
+            raise AgentBackendError(f"Ollama call failed: {e}") from e
 
         try:
             return AgentDraftOutput.model_validate_json(response.message.content)

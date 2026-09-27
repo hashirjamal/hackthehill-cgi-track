@@ -94,3 +94,10 @@ def test_ollama_backend_wraps_json_that_does_not_match_the_schema():
     backend = OllamaBackend(model="gemma3", host="http://localhost:11434", client=client)
     with pytest.raises(AgentBackendError):
         backend.draft(AGENT_CONFIGS["billing"], ComplaintIn(text="x"), AgentContext())
+
+
+def test_ollama_backend_wraps_any_other_client_failure():
+    client = FakeOllamaClient(raise_=RuntimeError("connection timed out"))
+    backend = OllamaBackend(model="gemma3", host="http://localhost:11434", client=client)
+    with pytest.raises(AgentBackendError):
+        backend.draft(AGENT_CONFIGS["billing"], ComplaintIn(text="x"), AgentContext())
