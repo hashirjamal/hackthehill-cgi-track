@@ -71,6 +71,13 @@ def test_read_case_notes_a_transfer():
         assert "transferred between systems" in _tool(tools, "read_case").invoke({})
 
 
+def test_read_case_includes_the_customers_text_when_there_is_some():
+    for db in _db():
+        tools = build_context_tools(db, _complaint(), AS_OF, _LOCK, customer_text="I was charged twice.")
+        assert "The customer said: I was charged twice." in _tool(tools, "read_case").invoke({})
+        assert "customer said" not in _tool(build_context_tools(db, _complaint(), AS_OF, _LOCK), "read_case").invoke({})
+
+
 def test_get_account_complaints_returns_a_message_when_there_is_no_history():
     for db in _db():
         tools = build_context_tools(db, _complaint(), AS_OF, _LOCK)

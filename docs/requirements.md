@@ -7,7 +7,7 @@ Background and evidence are in [../TEAM_BRIEF.md](../TEAM_BRIEF.md). The databas
 
 ## 1. Goal
 
-Make contact-centre staff faster and more accurate at clearing complaints, and prove with a simulator that this brings the average resolution time back to about 20 days, the level where the regulator score was 4.0.
+Make staff faster and more accurate at clearing complaints: four intake teams fill an info template as their only job, Laya sorts every case (five categories + urgency), and the AI agents pull the tedious case data from Northwind's systems themselves, so staff never have to dig through those systems.
 
 **Constraints**
 - No extra staff, and demand cannot be reduced.
@@ -28,10 +28,20 @@ Make contact-centre staff faster and more accurate at clearing complaints, and p
 Complaint arrives
       │
       ▼
-[A] Classification: Laya + custom rules → stored classes
+[0] Intake: one of the 4 intake teams fills the info template (their ONLY job -
+    as much info for Laya as possible, without looking through every system)
       │
       ▼
-[B] Domain AI agent (one per class) → draft reply + action items
+[A] Classification: Laya → five categories, then Laya decides the urgency on its own
+    (historic urgency data is not used - their way of deciding was not that good);
+    results are displayed on our app and dashboard
+      │
+      ▼
+[B] Domain AI agent (one per class): staff pick their role on the dashboard (e.g. Billing)
+    and click Get Action Items → Agentic + Ollama call. THE BIG ARCHITECTURE CHANGE: the tools
+    pull the tedious data themselves from the systems where it lives (e.g. Aurora Billing's
+    billing info tied to an account, Helix's account summary) - the LLM decides what it needs,
+    so no human looks through the systems in the first step of the process
       │
       ▼
 [C] Staff workspace: review, edit, approve, act
@@ -48,21 +58,21 @@ Priority: **P0** = must have for the demo, **P1** = should have, **P2** = only i
 
 ### A. Classification (P0)
 
-Runs on every open complaint (the 1,599 backlog) and on each new one. Implemented in `app/classification/`, called by `POST /complaints/process`.
+Runs on every new complaint's intake template (and on the 1,599-case backlog). Implemented in `app/classification/`, called by `POST /complaints/process`.
 
 | ID | Requirement |
 |---|---|
-| A1 | Classify with **Laya** in two stages. Stage 1 picks the **group** (Billing, Metering, Field services, Customer support, General), an **urgency score** and the **text flags** in one call. Stage 2 picks the **subcategory** (a Northwind data category), only for groups with more than one option. |
-| A2 | **Laya runs every step on every complaint**, even when the data already has a category or priority. New complaints have no text, so Laya reads a description of the record's fields (and the text, if any). The data category is not used to skip a step. It is compared with Laya's answer and both are stored. |
+| A1 | Classify with **Laya** in two stages, from the intake template. Stage 1 picks the **group** (Billing, Metering, Field services, Customer support, General), an **urgency score** and the **text flags** in one call. Stage 2 picks the **subcategory** (a Northwind data category), only for groups with more than one option. |
+| A2 | **Laya runs every step on every complaint**, reading the intake template's answers (and the text, if any). **Laya decides the urgency on its own** - historic urgency data is not used as an input, because Northwind's way of deciding if something was urgent was not that good. |
 | A3 | **Emergency screen** runs first. Emergencies go to dispatch as P1 and skip everything else. |
-| A4 | **Low confidence falls back to the data:** if the stage 1 top probability is below the threshold (default 0.6), use the group and category already in the data, and skip stage 2. Only a complaint with no data category goes to the general review queue. |
-| A5 | **Priority:** start from Northwind's priority (or the level that goes with its SLA target). Laya's urgency score (0 = P3, 1 = P2, 2 = P1) is used only when the complaint has neither. Flags can only raise it, the highest required level wins, capped at P1. This is the one exception to A2, because without text Laya's urgency score is not meaningful. |
+| A4 | **Low confidence falls back to the template:** if the stage 1 top probability is below the threshold (default 0.6), use the group implied by the template's category, and skip stage 2. Only a complaint with no category anywhere goes to the general review queue. |
+| A5 | **Priority:** comes from Laya's urgency score (0 = P3, 1 = P2, 2 = P1). Northwind's historic priority is NOT the starting point - their way of deciding if something was urgent was not that good. Flags can only raise the level, the highest required level wins, capped at P1. |
 | A6 | **Text flags (Laya):** disconnection (at least P2), vulnerable customer (P1), escalation threat (at least P2), repeat contact (+1 level), unusually high bill (at least P2), info only (quick lane). |
 | A7 | **Data flags (code):** legacy region (Barrowdale or Dunmoor with an estimated-read or no-read complaint: tag the likely cause and route to Metering), regulator referral (at least P2), deadline risk (over 75% of the target: +1 level). |
 | A8 | **Routing** by subcategory to a team (Billing team, Metering team, Collections, Network operations, Water operations, Field services, Customer care leads, General review queue). |
 | A9 | Store the result, the flags that fired, whether Laya's group and subcategory match the data category, and Laya's raw answers. Reclassifying keeps history and marks one row current. |
 
-**Input to Laya:** a description of the record (category, channel, priority and target, region, source system, transferred or not), plus the text if any. There is no complaint text in the Northwind data. The model loads once at server start.
+**Input to Laya:** the intake template's answers, filled in by one of the 4 intake teams (their only job - as much info for Laya as possible, without looking through every system), plus the text if any. There is no complaint text in the Northwind data. The model loads once at server start.
 
 ### B. Domain AI agents (P0)
 
@@ -78,7 +88,7 @@ One agent per domain. They share the same code and differ only in configuration 
 
 | ID | Requirement |
 |---|---|
-| B1 | Each agent gets the case, the account's history, the region's meter data and the **historic pattern** for that case type (average days, usual resolution, transfer and reopen rates). Patterns come from SQL summaries put into the agent's context, or from the agent querying the DB through MCP. |
+| B1 | **The big architecture change: the agent's tools pull the data the agent needs, itself, from the systems where the tedious data lives** - for example Aurora Billing's billing info tied to an account, or Helix's account summary. The local LLM decides what is important and fetches it, so staff never look through the systems in the first step of the process. The **historic pattern** for that case type (average days, usual resolution, transfer and reopen rates) still comes from SQL summaries. |
 | B2 | Each agent produces a **draft reply** where a reply applies (not every case needs one). |
 | B3 | Each agent produces **action items** for staff (for example: correct the bill, book a meter read, escalate to field team), each with a short reason and a suggested order. |
 | B4 | Every run is logged (which agent, input context, result, errors) for auditing. |
@@ -88,7 +98,7 @@ One agent per domain. They share the same code and differ only in configuration 
 
 | ID | Requirement |
 |---|---|
-| C1 | **Ranked worklist:** open cases ordered by breach risk, with days overdue, domain, likely cause and next action. |
+| C1 | **Ranked worklist:** staff go to the dashboard and select their specific role (for example Billing), then see their cases ranked by Laya's urgency, with days overdue, domain, likely cause and next action. |
 | C2 | **Case view:** the complaint, the account's earlier complaints, the region's meter picture, the classification, the draft reply and the action items on one screen. |
 | C3 | Staff can approve, edit or reject a draft. The decision, the final text and who made it are saved. |
 | C4 | Staff can mark action items as in progress, done or dismissed. |

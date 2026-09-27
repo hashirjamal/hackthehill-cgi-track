@@ -71,13 +71,11 @@ def test_deadline_risk_is_over_75_percent_of_target():
 
 def test_routing():
     hits = []
-    assert rules.route("Billing - disputed amount", hits=hits, low_confidence=False) == ("Billing team", "standard")
-    assert rules.route("Payment - plan or arrears", hits=hits, low_confidence=False) == ("Collections", "standard")
-    # Low confidence always goes to a person.
-    assert rules.route("Billing - disputed amount", hits=hits, low_confidence=True) == ("General review queue", "review")
+    assert rules.route("Billing - disputed amount", hits=hits) == ("Billing team", "standard")
+    assert rules.route("Payment - plan or arrears", hits=hits) == ("Collections", "standard")
 
     legacy = [FlagHit("legacy_region", "data", "route_metering")]
-    assert rules.route("Billing - disputed amount", hits=legacy, low_confidence=False)[0] == "Metering team"
+    assert rules.route("Billing - disputed amount", hits=legacy)[0] == "Metering team"
 
     quick = [hit("info_only", "quick_lane")]
-    assert rules.route("Billing - disputed amount", hits=quick, low_confidence=False) == ("Billing team", "quick_lane")
+    assert rules.route("Billing - disputed amount", hits=quick) == ("Billing team", "quick_lane")

@@ -6,6 +6,14 @@ DB design in [db-schema.md](db-schema.md). This file is the "where are we right 
 top of those — it will go stale as work continues, so prefer git history over this file for
 anything that sounds outdated.
 
+> **Plan change (docs-only, see [OPTIMIZATION_PLAN.md](OPTIMIZATION_PLAN.md)):** the team has settled on a new
+> architecture. Four intake companies receive complaints and fill an info template as their ONLY job; Laya
+> classifies into the five categories and decides urgency on its own (historic urgency data is not used);
+> staff pick their role on the dashboard and click Get Action Items, which invokes the Agentic + Ollama call;
+> and the agent's tools pull the tedious data themselves from the systems where it lives (Aurora Billing,
+> Helix CIS, ...) - no human looks through the systems in the first step of the process. Sections below that
+> describe the old priority-from-data rule or DB-only agent tools reflect the previous plan.
+
 ## Current state (as of this writing)
 
 Everything below is merged into local `main`, **not yet pushed to `origin/main`**. Two lines of

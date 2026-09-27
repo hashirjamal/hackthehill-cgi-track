@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.db import Base, get_db
 from app.laya_service import get_laya
 from app.main import app
-from app.models import ActionItem, AgentRun, Classification, Complaint, DraftResponse
+from app.models import Account, ActionItem, AgentRun, Classification, Complaint, DraftResponse, Region
 
 
 class FakeLaya:
@@ -270,3 +270,103 @@ def test_generate_draft_reports_failed_when_the_model_never_calls_save_draft_rep
     assert body["status"] == "failed"
     assert "did not save a draft" in body["error"]
     assert body["body"] is None
+
+
+def _intake(**overrides) -> dict:
+    body = dict(
+        account_id="ACC-1", text="My bill doubled this month and nobody will explain why.",
+        channel="Phone", region="Ashford", source_system="SYS-05",
+    )
+    body.update(overrides)
+    return body
+
+
+def _seed_region(TestSession, region="Ashford"):
+    db = TestSession()
+    db.add(Region(region=region))
+    db.commit()
+    db.close()
+
+
+def test_intake_saves_a_new_open_complaint_classified_by_laya(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    _seed_region(TestSession)
+    db = TestSession()
+    db.add(_complaint(complaint_id="NW-124205"))
+    db.commit()
+    db.close()
+
+    response = client.post("/complaints/intake", json=_intake())
+    assert response.status_code == 200
+    body = response.json()
+    assert body["complaint_id"] == "NW-124206"  # continues Northwind's numbering
+    # No Northwind priority on a new complaint, so urgency comes from Laya, not the history.
+    assert body["classification"]["priority"]["base_source"] == "laya"
+    assert body["category"] == "Service - poor communication"  # FakeLaya picks Customer support
+
+    db = TestSession()
+    complaint = db.get(Complaint, "NW-124206")
+    assert complaint.status == "Open"
+    assert complaint.category == "Service - poor communication"
+    assert complaint.priority == body["classification"]["priority"]["level"]
+    assert complaint.sla_days == body["classification"]["priority"]["target_days"]
+    current = db.query(Classification).filter_by(complaint_id="NW-124206", is_current=True).one()
+    assert current.input["text"] == "My bill doubled this month and nobody will explain why."  # the text is kept
+    db.close()
+
+
+def test_intake_numbers_the_first_complaint_when_there_are_none(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    _seed_region(TestSession)
+    assert client.post("/complaints/intake", json=_intake()).json()["complaint_id"] == "NW-100001"
+
+
+def test_intake_creates_the_account_when_it_is_new(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    _seed_region(TestSession)
+    assert client.post("/complaints/intake", json=_intake(account_id="ACC-NEW")).status_code == 200
+    db = TestSession()
+    assert db.get(Account, "ACC-NEW") is not None
+    db.close()
+
+
+def test_intake_rejects_an_unknown_region_and_saves_nothing(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    _seed_region(TestSession)
+    response = client.post("/complaints/intake", json=_intake(region="Atlantis"))
+    assert response.status_code == 422
+    assert "Atlantis" in response.json()["detail"]
+    db = TestSession()
+    assert db.query(Complaint).count() == 0 and db.query(Classification).count() == 0
+    db.close()
+
+
+def test_intake_rejects_blank_text(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    _seed_region(TestSession)
+    assert client.post("/complaints/intake", json=_intake(text="   ")).status_code == 422
+
+
+def test_intake_rejects_a_system_that_is_not_an_intake_system(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    _seed_region(TestSession)
+    assert client.post("/complaints/intake", json=_intake(source_system="SYS-06")).status_code == 422
+
+
+def test_get_context_gives_the_agent_the_customers_text_from_intake(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    _seed_region(TestSession)
+    complaint_id = client.post("/complaints/intake", json=_intake()).json()["complaint_id"]
+
+    captured = {}
+
+    def fake_run(model, cfg, tools, instruction):
+        captured["case"] = next(t for t in tools if t.name == "read_case").invoke({})
+        next(t for t in tools if t.name == "create_action_brief").invoke(
+            {"action_type": "review", "description": "Review the bill", "rationale": "Bill doubled"}
+        )
+
+    monkeypatch.setattr("app.complaint_routes._build_agent_model", lambda: object())
+    monkeypatch.setattr("app.complaint_routes.run_agent_once", fake_run)
+    assert client.post(f"/complaints/{complaint_id}/context").json()["status"] == "succeeded"
+    assert "The customer said: My bill doubled this month" in captured["case"]

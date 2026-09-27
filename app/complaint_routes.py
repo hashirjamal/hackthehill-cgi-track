@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_ollama import ChatOllama
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.agents.config import AGENT_CONFIGS, GROUP_TO_AGENT_ID, AgentConfig
@@ -17,12 +17,12 @@ from app.agents.runner import (
 )
 from app.agents.schemas import ActionItemOut, ContextResponse, DraftOut
 from app.agents.tools import build_action_item_tool, build_context_tools_for, build_draft_tool
-from app.classification.schemas import ProcessRequest, ProcessResponse
+from app.classification.schemas import ComplaintIn, IntakeRequest, IntakeResponse, ProcessRequest, ProcessResponse
 from app.classification.service import classify_complaint, db_as_of_date, save_classification
 from app.config import settings
 from app.db import get_db
 from app.laya_service import get_laya
-from app.models import ActionItem, AgentRun, Classification, Complaint, DraftResponse
+from app.models import Account, ActionItem, AgentRun, Classification, Complaint, DraftResponse, Region
 
 router = APIRouter(prefix="/complaints", tags=["complaints"])
 
@@ -50,6 +50,49 @@ def process_complaints(payload: ProcessRequest, db: Session = Depends(get_db)):
     return ProcessResponse(as_of_date=as_of, results=results)
 
 
+def _next_complaint_id(db: Session) -> str:
+    """Continue Northwind's NW-nnnnnn numbering (the ids are all six digits, so the text max is the number max)."""
+    last = db.execute(select(func.max(Complaint.complaint_id)).where(Complaint.complaint_id.like("NW-%"))).scalar()
+    return f"NW-{int(last[3:]) + 1 if last else 100001}"
+
+
+# Plain `def` for the same reason as process_complaints above.
+@router.post("/intake", response_model=IntakeResponse)
+def intake_complaint(payload: IntakeRequest, db: Session = Depends(get_db)):
+    """A brand-new complaint from one of the four intake systems. Laya classifies it straight away -
+    group, urgency and flags from the text, not from Northwind's history - and the complaint is
+    saved as an open case, so it is on the worklist, ranked, the moment this returns."""
+    if db.get(Region, payload.region) is None:
+        raise HTTPException(status_code=422, detail=f"unknown region {payload.region!r}")
+    as_of = settings.as_of_date or db_as_of_date(db) or date.today()
+    complaint_id = _next_complaint_id(db)
+    complaint_in = ComplaintIn(
+        complaint_id=complaint_id, text=payload.text, channel=payload.channel, region=payload.region,
+        source_system=payload.source_system, transferred_between_systems=False, date_opened=as_of,
+        account_id=payload.account_id,
+    )
+    try:
+        result, raw = classify_complaint(complaint_in, complaint_id, as_of, get_laya())
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # A new customer may not have an account row yet; the upstream team owns account ids, so trust it.
+    if db.get(Account, payload.account_id) is None:
+        db.add(Account(account_id=payload.account_id))
+    # Emergencies and review-queue cases have no subcategory; "Other" keeps the category column valid.
+    category = result.subcategory.name if result.subcategory else "Other"
+    db.add(Complaint(
+        complaint_id=complaint_id, account_id=payload.account_id, date_opened=as_of, status="Open",
+        channel=payload.channel, category=category, priority=result.priority.level, region=payload.region,
+        source_system=payload.source_system, transferred_between_systems=False,
+        sla_days=result.priority.target_days, sla_breach=False, reopened=False,
+    ))
+    db.flush()
+    result.classification_id = save_classification(db, complaint_in, result, raw, as_of)
+    db.commit()
+    return IntakeResponse(complaint_id=complaint_id, category=category, as_of_date=as_of, classification=result)
+
+
 def _build_agent_model() -> BaseChatModel | None:
     """None means N6's fallback: AI assistance is off, callers get a failed run instead of an LLM call."""
     if not settings.agent_enabled:
@@ -61,7 +104,9 @@ def _build_agent_model() -> BaseChatModel | None:
     )
 
 
-def _resolve_complaint_and_agent(db: Session, complaint_id: str) -> tuple[Complaint, str | None]:
+def _resolve_complaint_and_agent(db: Session, complaint_id: str) -> tuple[Complaint, str | None, str | None]:
+    """The complaint, its domain agent id (None when unclassified) and the customer's text (None
+    unless it came in through /intake - the text is kept in the classification's input)."""
     complaint = db.get(Complaint, complaint_id)
     if complaint is None:
         raise HTTPException(status_code=404, detail=f"complaint {complaint_id} not found")
@@ -73,7 +118,8 @@ def _resolve_complaint_and_agent(db: Session, complaint_id: str) -> tuple[Compla
     agent_id = (
         GROUP_TO_AGENT_ID.get(classification.group_name) if classification and classification.group_name else None
     )
-    return complaint, agent_id
+    customer_text = (classification.input or {}).get("text") if classification else None
+    return complaint, agent_id, customer_text
 
 
 def _start_run(db: Session, complaint_id: str, agent_id: str | None, model: BaseChatModel | None) -> AgentRun:
@@ -108,7 +154,7 @@ def _run_and_finish(
 def get_context(complaint_id: str, db: Session = Depends(get_db)):
     """"Get context" button on a case: runs the domain agent's read-only tools and asks it to
     record action items for staff - never a draft. Nothing runs until this is called."""
-    complaint, agent_id = _resolve_complaint_and_agent(db, complaint_id)
+    complaint, agent_id, customer_text = _resolve_complaint_and_agent(db, complaint_id)
     cfg = AGENT_CONFIGS.get(agent_id) if agent_id else None
     as_of = settings.as_of_date or db_as_of_date(db) or date.today()
 
@@ -120,7 +166,7 @@ def get_context(complaint_id: str, db: Session = Depends(get_db)):
     # flushing" without this).
     lock = threading.Lock()
     tools = [
-        *build_context_tools_for(agent_id, db, complaint, as_of, lock),
+        *build_context_tools_for(agent_id, db, complaint, as_of, lock, customer_text),
         build_action_item_tool(db, complaint, run.run_id, lock),
     ]
     _run_and_finish(run, model, cfg, tools, GET_CONTEXT_INSTRUCTION)
@@ -150,7 +196,7 @@ def generate_draft(complaint_id: str, db: Session = Depends(get_db)):
     """"Generate draft" button on a case: runs the domain agent's read-only tools and asks it to
     save one drafted reply, for staff to copy, edit, approve and send themselves. Nothing is sent
     automatically."""
-    complaint, agent_id = _resolve_complaint_and_agent(db, complaint_id)
+    complaint, agent_id, customer_text = _resolve_complaint_and_agent(db, complaint_id)
     cfg = AGENT_CONFIGS.get(agent_id) if agent_id else None
     as_of = settings.as_of_date or db_as_of_date(db) or date.today()
 
@@ -158,7 +204,7 @@ def generate_draft(complaint_id: str, db: Session = Depends(get_db)):
     run = _start_run(db, complaint_id, agent_id, model)
     lock = threading.Lock()  # see get_context() above for why this is needed
     tools = [
-        *build_context_tools_for(agent_id, db, complaint, as_of, lock),
+        *build_context_tools_for(agent_id, db, complaint, as_of, lock, customer_text),
         build_draft_tool(db, complaint, run.run_id, lock),
     ]
     _run_and_finish(run, model, cfg, tools, GENERATE_DRAFT_INSTRUCTION)

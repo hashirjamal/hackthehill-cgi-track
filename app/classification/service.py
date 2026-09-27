@@ -1,13 +1,12 @@
-"""Two-stage Laya classification of a complaint.
+"""Two-stage Laya classification of a complaint, into our own groups and urgency levels.
 
 Order: emergency screen, then stage 1 (group, urgency, text flags), then stage 2 (subcategory,
 only for groups with several options), then the data flags and the priority rules.
-Laya runs every step on every complaint. It reads a description of the complaint's fields, and the
-text too when there is any. The category already in the data is not used to skip a step; it is only
-compared with Laya's answer afterwards. The one exception is priority: Northwind's own priority is the
-starting point when the complaint has one, and Laya's urgency score is used only when it does not.
-When Laya's top group probability is under the threshold, the category in the data is used instead, and only
-a complaint with no data category goes to the review queue.
+Laya decides both the group and the urgency. Northwind's own labels are not trusted: their priority
+is never shown to Laya or used, and their category (the only description a CSV row has, since the
+backlog has no text) is shown to Laya as evidence but never overrides its answer - it is only
+compared with it afterwards. When Laya is unsure (top group probability under the threshold) its
+top pick is still used, and the case is marked low_confidence so staff can check it.
 """
 from datetime import date
 from typing import Any
@@ -30,7 +29,6 @@ from app.classification.taxonomy import (
     CATEGORY_TO_GROUP,
     EMERGENCY_QUESTION,
     GROUPS,
-    TARGET_DAYS_TO_PRIORITY,
     TEXT_FLAG_QUESTIONS,
     stage1_questions,
     stage2_question,
@@ -38,19 +36,17 @@ from app.classification.taxonomy import (
 from app.config import Settings, settings
 from app.models import Classification
 
-CLASSIFIER_VERSION = "laya-two-stage-v4"
+CLASSIFIER_VERSION = "laya-two-stage-v6"
 
 
 def render_state(complaint: ComplaintIn) -> str:
-    """Describe the complaint for Laya. Ids and dates are left out, so similar complaints share answers."""
+    """Describe the complaint for Laya. Ids and dates are left out, so similar complaints share answers.
+    Northwind's priority is left out too: urgency is Laya's call, from the text."""
     parts = ["Customer complaint."]
     if complaint.category:
         parts.append(f"Category: {complaint.category}.")
     if complaint.channel:
         parts.append(f"Channel: {complaint.channel}.")
-    if complaint.priority:
-        target = f", target {complaint.sla_days} days" if complaint.sla_days else ""
-        parts.append(f"Priority: {complaint.priority}{target}.")
     if complaint.region:
         parts.append(f"Region: {complaint.region}.")
     if complaint.source_system:
@@ -90,9 +86,7 @@ def classify_complaint(
             data_category=complaint.category,
         ), raw
 
-    # Northwind's priority (or the SLA target that goes with it) is the starting point when there is one.
-    data_priority = complaint.priority or TARGET_DAYS_TO_PRIORITY.get(complaint.sla_days)
-    raw["stage1"] = laya.predict(state, stage1_questions(need_urgency=data_priority is None))["answers"]
+    raw["stage1"] = laya.predict(state, stage1_questions())["answers"]
     s1 = raw["stage1"]
 
     group_probs = s1["group"]["probabilities"]
@@ -100,54 +94,38 @@ def classify_complaint(
     group_conf = group_probs[group_name]
     low_confidence = group_conf < cfg.group_confidence_threshold
 
-    urgency_score = None
-    if data_priority:
-        base_level, base_source = rules.PRIORITY_TO_LEVEL[data_priority], "data"
-    else:
-        urgency_probs = s1["urgency"]["probabilities"]
-        base_level, base_source = int(max(urgency_probs, key=urgency_probs.get)), "laya"
-        urgency_score = s1["urgency"]["score"]
+    urgency_probs = s1["urgency"]["probabilities"]
+    base_level = int(max(urgency_probs, key=urgency_probs.get))
+    urgency_score = s1["urgency"]["score"]
     text_probs = {name: s1[name]["noul"] for name in TEXT_FLAG_QUESTIONS}
 
-    # Low confidence: fall back to the category already in the data. With no data category there is
-    # nothing to fall back to, so the case goes to the review queue. Either way stage 2 is skipped.
-    subcategory: SubcategoryOut | None = None
-    used_group, group_source = group_name, "laya"
-    needs_review = False
-    if low_confidence:
-        if complaint.category:
-            used_group, group_source = CATEGORY_TO_GROUP[complaint.category], "data"
-            subcategory = SubcategoryOut(name=complaint.category, source="data", confidence=None)
-        else:
-            needs_review = True
+    options = GROUPS[group_name]["subcategories"]
+    if len(options) == 1:
+        subcategory = SubcategoryOut(name=options[0], source="laya", confidence=None)
     else:
-        options = GROUPS[group_name]["subcategories"]
-        if len(options) == 1:
-            subcategory = SubcategoryOut(name=options[0], source="laya", confidence=None)
-        else:
-            raw["stage2"] = laya.predict(state, {"subcategory": stage2_question(group_name)})["answers"]
-            probs = raw["stage2"]["subcategory"]["probabilities"]
-            name = max(probs, key=probs.get)
-            subcategory = SubcategoryOut(name=name, source="laya", confidence=probs[name])
+        raw["stage2"] = laya.predict(state, {"subcategory": stage2_question(group_name)})["answers"]
+        probs = raw["stage2"]["subcategory"]["probabilities"]
+        name = max(probs, key=probs.get)
+        subcategory = SubcategoryOut(name=name, source="laya", confidence=probs[name])
 
     hits = rules.text_flag_hits(text_probs, cfg.flag_threshold)
     for hit in (
-        rules.legacy_region_hit(complaint.region, subcategory.name if subcategory else None),
+        rules.legacy_region_hit(complaint.region, subcategory.name),
         rules.regulator_referral_hit(complaint.channel),
     ):
         if hit:
             hits.append(hit)
 
-    # Deadline risk is measured against Northwind's existing target, or the target of the
-    # priority reached so far when the case has none.
+    # Deadline risk is measured against our own target, never Northwind's. It is a marker only:
+    # most of the backlog is past target, so letting it raise urgency would make everything P1.
     open_days = rules.days_open(complaint.date_opened, as_of)
-    target = complaint.sla_days or rules.combine_priority(base_level, hits).target_days
+    target = rules.combine_priority(base_level, hits).target_days
     deadline = rules.deadline_risk_hit(open_days, target)
     if deadline:
         hits.append(deadline)
 
     decision = rules.combine_priority(base_level, hits)
-    team, lane = rules.route(subcategory.name if subcategory else "Other", hits=hits, low_confidence=needs_review)
+    team, lane = rules.route(subcategory.name, hits=hits)
     legacy = any(h.effect == "route_metering" for h in hits)
 
     data_category = complaint.category
@@ -157,8 +135,8 @@ def classify_complaint(
         emergency=False,
         emergency_probability=emergency_p,
         group=GroupOut(
-            name=used_group,
-            source=group_source,
+            name=group_name,
+            source="laya",
             laya_name=group_name,
             confidence=group_conf,
             probabilities=group_probs,
@@ -169,7 +147,7 @@ def classify_complaint(
             level=decision.priority,
             target_days=decision.target_days,
             base_level=rules.LEVEL_TO_PRIORITY[decision.base_level],
-            base_source=base_source,
+            base_source="laya",
             urgency_score=urgency_score,
             raised_by=decision.driving_flags,
         ),
@@ -181,10 +159,9 @@ def classify_complaint(
         text_flag_probabilities=text_probs,
         likely_cause="estimated_reading" if legacy else None,
         data_category=data_category,
-        # Compared on Laya's own answers, so a data fallback does not count as a match.
         group_matches_data=(group_name == CATEGORY_TO_GROUP[data_category]) if data_category else None,
         subcategory_matches_data=(
-            (subcategory.name == data_category) if data_category and subcategory and subcategory.source == "laya" else None
+            (subcategory.name == data_category) if data_category else None
         ),
     ), raw
 

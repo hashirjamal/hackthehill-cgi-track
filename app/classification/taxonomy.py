@@ -83,11 +83,8 @@ TEXT_FLAG_QUESTIONS: dict[str, str] = {
 }
 
 
-def stage1_questions(need_urgency: bool = True) -> dict[str, dict]:
-    """Group, urgency score and the text flags, answered in one Laya call.
-
-    The urgency score is left out when the complaint already has a Northwind priority.
-    """
+def stage1_questions() -> dict[str, dict]:
+    """Group, urgency score and the text flags, answered in one Laya call."""
     questions: dict[str, dict] = {
         "group": {
             "type": "choice",
@@ -95,12 +92,11 @@ def stage1_questions(need_urgency: bool = True) -> dict[str, dict]:
             "criteria": {name: g["description"] for name, g in GROUPS.items()},
         },
     }
-    if need_urgency:
-        questions["urgency"] = {
-            "type": "score",
-            "instructions": "How urgent is this complaint?",
-            "criteria": URGENCY_LEVELS,
-        }
+    questions["urgency"] = {
+        "type": "score",
+        "instructions": "How urgent is this complaint?",
+        "criteria": URGENCY_LEVELS,
+    }
     for name, instructions in TEXT_FLAG_QUESTIONS.items():
         questions[name] = {"type": "noul", "instructions": instructions}
     return questions

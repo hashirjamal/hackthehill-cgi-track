@@ -71,33 +71,21 @@ def test_multi_option_group_runs_stage_two():
     assert ["subcategory"] in fake.calls
 
 
-def test_low_confidence_with_no_data_category_goes_to_review_and_skips_stage_two():
-    fake = FakeLaya(group="Billing", group_p=0.5)
+def test_low_confidence_still_uses_layas_top_pick_and_marks_it():
+    fake = FakeLaya(group="Customer support", group_p=0.4)  # Laya is unsure
+    result = run(fake, text=None, category="Service - missed appointment")
+    assert result.low_confidence
+    assert (result.group.name, result.group.source) == ("Customer support", "laya")  # not the CSV category
+    assert (result.subcategory.name, result.subcategory.source) == ("Service - poor communication", "laya")
+    assert (result.routing.team, result.routing.lane) == ("Customer care leads", "standard")  # no review queue
+    assert result.group_matches_data is False
+
+
+def test_low_confidence_multi_option_group_still_runs_stage_two():
+    fake = FakeLaya(group="Billing", group_p=0.45, subcategory="Billing - estimated read")
     result = run(fake)
-    assert result.low_confidence
-    assert (result.routing.team, result.routing.lane) == ("General review queue", "review")
-    assert result.subcategory is None
-    assert ["subcategory"] not in fake.calls
-
-
-def test_low_confidence_falls_back_to_the_data_category():
-    fake = FakeLaya(group="Customer support", group_p=0.4)  # Laya is unsure and picks the wrong group
-    result = run(fake, text=None, category="Service - missed appointment")
-    assert result.low_confidence
-    assert (result.group.name, result.group.source, result.group.laya_name) == ("Field services", "data", "Customer support")
-    assert (result.subcategory.name, result.subcategory.source) == ("Service - missed appointment", "data")
-    assert (result.routing.team, result.routing.lane) == ("Field services", "standard")  # not the review queue
-    assert ["subcategory"] not in fake.calls  # stage 2 is skipped
-    assert result.group_matches_data is False  # Laya's own pick is what is compared
-    assert result.subcategory_matches_data is None
-
-
-def test_confident_laya_is_not_replaced_by_the_data_category():
-    fake = FakeLaya(group="Field services", group_p=0.9, subcategory="Water - pressure or quality")
-    result = run(fake, text=None, category="Service - missed appointment")
-    assert not result.low_confidence
-    assert (result.group.source, result.subcategory.source) == ("laya", "laya")
-    assert result.routing.team == "Water operations"
+    assert result.low_confidence and result.subcategory.name == "Billing - estimated read"
+    assert ["subcategory"] in fake.calls
 
 
 def test_estimated_read_routes_to_metering_team():
@@ -125,13 +113,15 @@ def test_regulator_referral_raises_to_p2():
     assert result.priority.level == "P2" and result.priority.raised_by == ["regulator_referral"]
 
 
-def test_deadline_risk_uses_existing_target():
-    # Opened 28 days before AS_OF, 20-day target: over 75%, so one level up.
-    result = run(FakeLaya(urgency=0), date_opened=date(2026, 9, 2), sla_days=20)
-    assert result.priority.level == "P2" and result.priority.raised_by == ["deadline_risk"]
+def test_deadline_risk_is_a_marker_on_our_target_and_never_raises_urgency():
+    # Laya says routine (P3, our 20-day target). Opened 28 days before AS_OF: over 75%, so marked.
+    result = run(FakeLaya(urgency=0), date_opened=date(2026, 9, 2), sla_days=5)
+    assert "deadline_risk" in [f.name for f in result.flags]
+    assert result.priority.level == "P3" and result.priority.raised_by == []
 
-    result = run(FakeLaya(urgency=0), date_opened=date(2026, 9, 28), sla_days=20)
-    assert result.priority.level == "P3"
+    # 10 days open is under 75% of our 20-day target, even though Northwind's own target was 5 days.
+    result = run(FakeLaya(urgency=0), date_opened=date(2026, 9, 20), sla_days=5)
+    assert "deadline_risk" not in [f.name for f in result.flags]
 
 
 def test_new_complaint_without_dates_has_no_deadline_flag():
@@ -150,27 +140,15 @@ def test_laya_runs_every_step_even_when_the_data_has_category_and_priority():
     assert result.subcategory.name == "Payment - plan or arrears"
 
 
-def test_data_priority_is_the_starting_point_and_flags_raise_it():
-    fake = FakeLaya(urgency=2, flags={"disconnection": 0.9})
-    result = run(fake, text=None, category="Other", priority="P3")
-    assert "urgency" not in fake.calls[1]  # Laya is not asked for it
-    assert (result.priority.base_level, result.priority.base_source) == ("P3", "data")
-    assert result.priority.level == "P2" and result.priority.raised_by == ["disconnection"]  # flag raises it
+def test_urgency_always_comes_from_laya_and_northwinds_priority_is_ignored():
+    fake = FakeLaya(urgency=0, flags={"disconnection": 0.9})
+    result = run(fake, text=None, category="Other", priority="P1", sla_days=5)
+    assert "urgency" in fake.calls[1]  # Laya is always asked
+    assert (result.priority.base_level, result.priority.base_source) == ("P3", "laya")
+    assert result.priority.level == "P2" and result.priority.raised_by == ["disconnection"]  # flags still raise it
 
-    # Flags never lower it.
-    result = run(FakeLaya(flags={"disconnection": 0.9}), text=None, category="Other", priority="P1")
-    assert result.priority.level == "P1"
-
-
-def test_sla_target_gives_the_priority_when_priority_is_missing():
-    result = run(FakeLaya(urgency=2), text=None, category="Other", sla_days=10)
-    assert (result.priority.base_level, result.priority.base_source) == ("P2", "data")
-
-
-def test_laya_urgency_is_used_only_when_the_data_has_no_priority():
-    result = run(FakeLaya(urgency=2), text=None, category="Other")
-    assert (result.priority.base_level, result.priority.base_source) == ("P1", "laya")
-    assert result.priority.urgency_score == 2.0
+    result = run(FakeLaya(urgency=2), text=None, category="Other", priority="P3")
+    assert (result.priority.level, result.priority.urgency_score) == ("P1", 2.0)
 
 
 def test_data_category_is_compared_with_laya_not_used_instead_of_it():
@@ -192,7 +170,8 @@ def test_state_describes_the_record_without_ids_or_dates():
                     channel="Phone", priority="P3", sla_days=20, region="Ashford", source_system="SYS-05",
                     transferred_between_systems=True)
     state = render_state(c)
-    assert "Category: Other" in state and "Priority: P3, target 20 days" in state
+    assert "Category: Other" in state
+    assert "Priority" not in state and "20 days" not in state  # Northwind's priority is not shown to Laya
     assert "Transferred between systems: yes" in state and "Source system: SYS-05" in state
     assert "NW-1" not in state and "ACC-1" not in state and "2026" not in state
 

@@ -143,3 +143,44 @@ export function useClassify() {
     },
   })
 }
+
+// --- Intake -------------------------------------------------------------------------------------
+
+/** The intake template: a brand-new complaint. No category or priority - Laya decides both. */
+export interface IntakeComplaint {
+  account_id: string
+  text: string
+  channel: string
+  region: string
+  source_system: string
+}
+
+export interface IntakeResult {
+  complaint_id: string
+  category: string
+  as_of_date: string
+  classification: {
+    emergency: boolean
+    group: { name: string; confidence: number } | null
+    priority: { level: 'P1' | 'P2' | 'P3'; target_days: number; raised_by: string[] }
+    routing: { team: string; lane: string }
+    flags: { name: string; reason: string }[]
+  }
+}
+
+const INTAKE_TOAST = 'intake'
+
+/** POST /complaints/intake. Laya classifies it and it lands on the worklist, so every report is refreshed. */
+export function useIntake() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (complaint: IntakeComplaint) =>
+      apiPost<IntakeResult>('/complaints/intake', complaint, { timeoutMs: CLASSIFY_TIMEOUT_MS }),
+    meta: { errorTitle: "Couldn't log the complaint", toastId: INTAKE_TOAST },
+    onMutate: () => toastLoading('Classifying the complaint', 'Laya is reading it. This takes a few seconds.', INTAKE_TOAST),
+    onSuccess: (r) => {
+      toastSuccess(`Logged ${r.complaint_id}`, `${r.classification.priority.level} · ${r.classification.routing.team}`, INTAKE_TOAST)
+      void queryClient.invalidateQueries({ queryKey: [REPORTS] })
+    },
+  })
+}

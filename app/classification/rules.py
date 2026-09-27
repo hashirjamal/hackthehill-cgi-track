@@ -11,7 +11,6 @@ from app.classification.taxonomy import (
     ROUTES,
     TEAM_DISPATCH,
     TEAM_METERING,
-    TEAM_REVIEW,
 )
 
 LEVEL_TO_PRIORITY = {0: "P3", 1: "P2", 2: "P1"}
@@ -38,7 +37,7 @@ TEXT_FLAG_EFFECTS: dict[str, tuple[str, int | None]] = {
 class FlagHit:
     name: str
     source: str  # "text" or "data"
-    effect: str  # "at_least", "raise_one", "quick_lane" or "route_metering"
+    effect: str  # "at_least", "raise_one", "quick_lane", "route_metering" or "marker" (display only)
     level: int | None = None  # for "at_least"
     probability: float | None = None  # for text flags
     reason: str = ""
@@ -91,7 +90,9 @@ def days_open(date_opened: date | None, as_of: date) -> int | None:
 def deadline_risk_hit(open_days: int | None, target_days: int) -> FlagHit | None:
     if open_days is not None and open_days > DEADLINE_RISK_SHARE * target_days:
         return FlagHit(
-            "deadline_risk", "data", "raise_one",
+            # "marker": shown to staff, but it never changes the urgency. Urgency is about what the
+            # complaint says; how long it has waited is the worklist's second sort key (days overdue).
+            "deadline_risk", "data", "marker",
             reason=f"open {open_days} days, over {int(DEADLINE_RISK_SHARE * 100)}% of the {target_days}-day target",
         )
     return None
@@ -110,10 +111,8 @@ def combine_priority(base_level: int, hits: list[FlagHit]) -> PriorityDecision:
     return PriorityDecision(base_level=base_level, level=final, driving_flags=driving)
 
 
-def route(subcategory: str, *, hits: list[FlagHit], low_confidence: bool) -> tuple[str, str]:
-    """Return (team, lane). Lanes: review, quick_lane, standard."""
-    if low_confidence:
-        return TEAM_REVIEW, "review"
+def route(subcategory: str, *, hits: list[FlagHit]) -> tuple[str, str]:
+    """Return (team, lane). Lanes: quick_lane, standard (emergencies are routed before this)."""
     team = ROUTES[subcategory]
     if any(h.effect == "route_metering" for h in hits):
         team = TEAM_METERING

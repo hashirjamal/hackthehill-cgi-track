@@ -66,15 +66,21 @@ Rules and taxonomy: `app/classification/` (`taxonomy.py` groups, routes and Laya
 and flag rules, `service.py` the pipeline). Thresholds are in `app/config.py` and can be set in `.env`
 (`GROUP_CONFIDENCE_THRESHOLD`, `FLAG_THRESHOLD`, `EMERGENCY_THRESHOLD`, `AS_OF_DATE`).
 
-**Laya runs every step on every complaint**, even when the data already has a category or priority. New complaints
-have no text, so Laya reads a description of the record (category, channel, priority, region, source system,
-whether it was transferred), plus the text if there is any. The category in the data is not used to skip a step. It is
-compared with Laya's answer afterwards (`group_matches_data`, `subcategory_matches_data`). The one exception is
-priority: Northwind's priority (or the level that goes with its `sla_days`) is the starting point, and Laya's urgency
-score is used only when the complaint has neither. Flags then raise it, never lower it.
+**Laya runs every step on every complaint.** Per the current plan (see `docs/OPTIMIZATION_PLAN.md`), Laya reads the
+intake template's answers - filled in by one of the 4 intake teams, whose only job is that template - plus the text
+if there is any, and decides the urgency on its own: Northwind's historic priority is not used as the starting
+point, because their way of deciding if something was urgent was not that good. Flags then raise the level, never
+lower it.
 
-If Laya's top group probability is under `GROUP_CONFIDENCE_THRESHOLD` (0.6), the group and category already in the
-data are used instead, and stage 2 is skipped. Only a complaint with no data category goes to the review queue.
+If Laya's top group probability is under `GROUP_CONFIDENCE_THRESHOLD` (0.6), Laya's top pick is still used (we
+classify into our own categories, never Northwind's) and the case is marked `low_confidence` for staff to check.
+Northwind's priority is not shown to Laya at all. Deadline risk (open over 75% of our target) is a marker only: most
+of the backlog is past target, so letting it raise urgency would make everything P1.
+
+**New complaints:** `POST /complaints/intake` (the "New complaint" page) takes the intake template - account, region,
+intake system, channel and what the customer said - runs Laya, and saves the complaint as an open case, so it is on
+the worklist immediately. **The existing open backlog** is classified once with `python -m app.classify_backlog`
+(safe to stop and re-run; complaints already on the current classifier version are skipped).
 
 **The model loads once when the server starts** (plus one warm-up call), so no request pays for it. Set
 `PRELOAD_LAYA=false` to skip that in development. Answers are cached by state, so complaints that describe the same

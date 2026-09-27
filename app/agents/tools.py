@@ -52,8 +52,11 @@ def _pct(value: float | None) -> str:
     return f"{value * 100:.0f}%" if value is not None else "unknown"
 
 
-def build_context_tools(db: Session, complaint: Complaint, as_of: date, lock: threading.Lock) -> list:
-    """Read-only lookups every domain shares. No side effects."""
+def build_context_tools(
+    db: Session, complaint: Complaint, as_of: date, lock: threading.Lock, customer_text: str | None = None
+) -> list:
+    """Read-only lookups every domain shares. No side effects. customer_text is what the customer
+    said, from the intake template - None for complaints loaded from the CSV, which have no text."""
 
     @tool
     def read_case() -> str:
@@ -69,6 +72,8 @@ def build_context_tools(db: Session, complaint: Complaint, as_of: date, lock: th
         ]
         if complaint.transferred_between_systems:
             parts.append("It has been transferred between systems.")
+        if customer_text:
+            parts.append(f"The customer said: {customer_text}")
         return " ".join(parts)
 
     @tool
@@ -165,12 +170,17 @@ def _knowledge_base_tool():
 
 
 def build_context_tools_for(
-    agent_id: str | None, db: Session, complaint: Complaint, as_of: date, lock: threading.Lock
+    agent_id: str | None,
+    db: Session,
+    complaint: Complaint,
+    as_of: date,
+    lock: threading.Lock,
+    customer_text: str | None = None,
 ) -> list:
     """Context tools for the given domain. general additionally gets search_knowledge_base -
     the one genuinely domain-specific real data source available (a static FAQ). Every other
     domain, and an unclassified complaint (agent_id is None), gets the shared set only."""
-    tools = build_context_tools(db, complaint, as_of, lock)
+    tools = build_context_tools(db, complaint, as_of, lock, customer_text)
     if agent_id == "general":
         tools = [*tools, _knowledge_base_tool()]
     return tools
