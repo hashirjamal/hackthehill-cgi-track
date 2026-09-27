@@ -19,8 +19,9 @@ GET_CONTEXT_INSTRUCTION = (
     "create_action_brief once per concrete next action staff should take (usually 2 to 5), most "
     "urgent first. Base every action on something you found, and in its rationale name the system "
     "and the fact, for example \"Aurora: last 3 bills estimated, latest £412 vs usual £180\". "
-    "Flag vulnerability (Priority Services Register) and repeat contacts first. Do not draft "
-    "anything for the customer."
+    "Flag vulnerability (Priority Services Register) and repeat contacts first. If the customer "
+    "already gave us something - a meter reading, a photo, an explanation - use it rather than "
+    "booking a visit or asking again. Do not draft anything for the customer."
 )
 
 GENERATE_DRAFT_INSTRUCTION = (

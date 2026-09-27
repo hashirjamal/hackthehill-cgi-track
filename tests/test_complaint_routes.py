@@ -387,3 +387,17 @@ def test_get_context_gives_the_agent_the_customers_text_from_intake(monkeypatch)
     monkeypatch.setattr("app.complaint_routes.run_agent_once", fake_run)
     assert client.post(f"/complaints/{complaint_id}/context").json()["status"] == "succeeded"
     assert "The customer said: My bill doubled this month" in captured["case"]
+
+
+def test_intake_in_rules_mode_classifies_with_keywords_and_no_laya(monkeypatch):
+    client, TestSession = _client(monkeypatch)
+    _seed_region(TestSession)
+
+    def no_laya():
+        raise AssertionError("rules mode must not load Laya")
+
+    monkeypatch.setattr("app.complaint_routes.get_laya", no_laya)
+    body = client.post("/complaints/intake?mode=rules", json=_intake(
+        text="It is an estimate again, not an actual reading.")).json()
+    assert body["classification"]["classifier_version"] == "keywords-v1"
+    assert body["category"] == "Billing - estimated read"
