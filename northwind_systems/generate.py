@@ -132,7 +132,7 @@ def build_account(account_id: str, complaints: list[Complaint], est_rates: dict)
     if focus.category == "Payment - plan or arrears":
         payment_plan = {
             "status": rng.choice(["PROPOSED", "ACTIVE - NOT APPLIED", "BROKEN"]),
-            "agreed_monthly": round(max(25.0, usual * rng.uniform(0.35, 0.6)), 2),
+            "agreed_monthly": _affordable(usual),  # what the customer told the call centre they can pay
             "agreed_on": (focus.date_opened + timedelta(days=rng.randint(1, 6))).isoformat(),
         }
 
@@ -202,6 +202,10 @@ def _bills(rng, account_id, region, complaints, focus, usual, est_rates) -> list
     return bills
 
 
+def _affordable(usual: float) -> float:
+    return float(max(25, round(usual * 0.5)))
+
+
 def _story_values(rng, complaint: Complaint, usual: float, bills: list[dict]) -> dict:
     disputed = next((b for b in reversed(bills) if b["issued"] <= complaint.date_opened.isoformat() and b["amount"] > 0),
                     bills[-1])
@@ -210,8 +214,12 @@ def _story_values(rng, complaint: Complaint, usual: float, bills: list[dict]) ->
         if b["read_type"] != "ESTIMATED":
             break
         months_estimated += 1
+    amount = disputed["amount"]
+    if complaint.category == "Payment - plan or arrears":
+        # Arrears letters and calls quote the total owed, not one bill.
+        amount = sum(b["amount"] for b in bills if b["status"] == "OVERDUE") or amount
     return {
-        "amount": f"£{disputed['amount']:.2f}", "usual": f"£{usual:.0f}",
+        "amount": f"£{amount:.2f}", "usual": f"£{usual:.0f}", "afford": f"£{_affordable(usual):.0f}",
         "months": str(max(months_estimated, 2)),
         "date": (complaint.date_opened - timedelta(days=rng.randint(6, 25))).strftime("%d/%m"),
         "reading": f"{(disputed['reading'] or 0) - rng.randint(300, 900):05d}",
@@ -232,14 +240,19 @@ def _calls(rng, complaints: list[Complaint], usual: float, bills: list[dict]) ->
             ("chase", c.date_opened + timedelta(days=rng.randint(max(2, span // 4), max(3, span - 1))))
             for _ in range(n_chase)
         ]
+        # Chase notes are drawn without repeats, so three chase calls never read identically.
+        chase_notes = rng.sample(notes["chase"], len(notes["chase"]))
         for kind, day in sorted(moments, key=lambda m: m[1]):
             agent_id, agent = rng.choice(T.AGENTS)
+            note = rng.choice(notes["first"]) if kind == "first" else chase_notes.pop() if chase_notes else None
+            if note is None:
+                continue
             at = datetime(day.year, day.month, day.day, rng.randint(8, 18), rng.randint(0, 59), rng.randint(0, 59))
             calls.append({
                 "started_at": at.isoformat(), "duration_s": rng.randint(180, 1500) if kind == "first" else rng.randint(120, 900),
                 "agent_id": agent_id, "agent": agent, "queue": "Billing" if "Bill" in c.category or "Pay" in c.category else "General",
                 "wrap_code": T.WRAP_CODES.get(c.category, "GEN-ENQ") + ("-CHS" if kind == "chase" else ""),
-                "notes": rng.choice(notes[kind]).format(**values), "related_ref": c.complaint_id if rng.random() < 0.5 else None,
+                "notes": note.format(**values), "related_ref": c.complaint_id if rng.random() < 0.5 else None,
             })
     return calls
 

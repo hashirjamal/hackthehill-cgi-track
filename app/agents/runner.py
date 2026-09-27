@@ -15,15 +15,22 @@ from app.agents.config import AgentConfig
 DEFAULT_SYSTEM_PROMPT = "You are a support agent assistant. Help staff understand and resolve this case."
 
 GET_CONTEXT_INSTRUCTION = (
-    "Use your tools to understand this case, then call create_action_brief once per concrete "
-    "next action staff should take, in the order they should tackle them. Do not draft anything "
-    "for the customer."
+    "Use your tools to check this customer's records in Northwind's systems, then call "
+    "create_action_brief once per concrete next action staff should take (usually 2 to 5), most "
+    "urgent first. Base every action on something you found, and in its rationale name the system "
+    "and the fact, for example \"Aurora: last 3 bills estimated, latest £412 vs usual £180\". "
+    "Flag vulnerability (Priority Services Register) and repeat contacts first. Do not draft "
+    "anything for the customer."
 )
 
 GENERATE_DRAFT_INSTRUCTION = (
-    "Staff have asked for a drafted reply to the customer for this case. Use your tools to "
-    "gather whatever context is relevant, then call save_draft_reply exactly once with your "
-    "best draft, in a professional and empathetic tone."
+    "Staff have asked for a drafted reply to the customer for this case. Use your tools to check "
+    "the customer's records, then call save_draft_reply exactly once. Address the customer by "
+    "name, refer to the specific facts you found (amounts, dates, what they told us), and never "
+    "ask for anything we already hold, such as their account number or a reading they already "
+    "submitted. Do not promise refunds, credits or dates that the records do not confirm - say "
+    "what staff will check instead. Warm, plain, professional; under 200 words; sign off as "
+    "\"[Your name], Northwind Energy & Water\"."
 )
 
 

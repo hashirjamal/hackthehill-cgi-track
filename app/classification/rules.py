@@ -27,7 +27,8 @@ TEXT_FLAG_EFFECTS: dict[str, tuple[str, int | None]] = {
     "disconnection": ("at_least", 1),
     "vulnerable": ("at_least", 2),
     "escalation_threat": ("at_least", 1),
-    "repeat_contact": ("raise_one", None),
+    "repeat_contact": ("at_least", 1),  # chasing makes it more pressing, but is not danger on its own
+    "safety_risk": ("at_least", 2),
     "high_bill": ("at_least", 1),
     "info_only": ("quick_lane", None),
 }

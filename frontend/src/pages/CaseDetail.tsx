@@ -121,6 +121,8 @@ function Body({ data }: { data: CaseContext }) {
           </dl>
         </Card>
 
+        <AgentPanel data={data} />
+
         <Card>
           <CardTitle title="Classification" hint="What the classifier decided, and why" />
           {cl ? (
@@ -182,8 +184,6 @@ function Body({ data }: { data: CaseContext }) {
       </div>
 
       <div className="flex flex-col gap-4">
-        <AgentPanel data={data} />
-
         <Card>
           <CardTitle title="Region meter picture" hint={`${c.region}, estimated-read rate by month`} />
           {data.region_meter.length === 0 ? (

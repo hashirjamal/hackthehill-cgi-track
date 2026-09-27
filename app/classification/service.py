@@ -36,7 +36,8 @@ from app.classification.taxonomy import (
 from app.config import Settings, settings
 from app.models import Classification
 
-CLASSIFIER_VERSION = "laya-two-stage-v7"
+CLASSIFIER_VERSION = "laya-two-stage-v8"
+MAX_BASE_LEVEL = 1  # P2
 
 
 def render_state(complaint: ComplaintIn) -> str:
@@ -95,7 +96,9 @@ def classify_complaint(
     low_confidence = group_conf < cfg.group_confidence_threshold
 
     urgency_probs = s1["urgency"]["probabilities"]
-    base_level = int(max(urgency_probs, key=urgency_probs.get))
+    # Laya's urgency alone goes up to P2. P1 needs evidence - an emergency, a vulnerable customer or a
+    # health or safety risk (the flags below) - so every P1 on the worklist has a stated reason.
+    base_level = min(int(max(urgency_probs, key=urgency_probs.get)), MAX_BASE_LEVEL)
     urgency_score = s1["urgency"]["score"]
     text_probs = {name: s1[name]["noul"] for name in TEXT_FLAG_QUESTIONS}
 

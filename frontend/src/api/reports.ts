@@ -190,19 +190,25 @@ export function useIntake() {
 
 // --- AI agent buttons on a case -----------------------------------------------------------------
 
-const AGENT_TIMEOUT_MS = 5 * 60_000 // a local model reading several tools can take a while
+const AGENT_TIMEOUT_MS = 5 * 60_000 // a local model reading several systems can take a while
 
-/** One of the two buttons. A run that fails (e.g. AI switched off) is a normal answer with status "failed". */
+/** One of the two buttons, in AI or no-AI (rules) mode. The server falls back to rules if the AI is off or fails. */
 function useAgentRun<T extends AgentRunResult>(id: string, action: 'context' | 'draft', label: string) {
   const queryClient = useQueryClient()
   const toastId = `agent-${action}-${id}`
   return useMutation({
-    mutationFn: () => apiPost<T>(`/complaints/${encodeURIComponent(id)}/${action}`, undefined, { timeoutMs: AGENT_TIMEOUT_MS }),
+    mutationFn: (mode: 'ai' | 'rules') =>
+      apiPost<T>(`/complaints/${encodeURIComponent(id)}/${action}?mode=${mode}`, undefined, { timeoutMs: AGENT_TIMEOUT_MS }),
     meta: { errorTitle: `Couldn't ${label.toLowerCase()}`, toastId },
-    onMutate: () => toastLoading(`${label}…`, 'The local AI is reading the case. This can take up to a minute.', toastId),
+    onMutate: (mode) =>
+      toastLoading(
+        `${label}…`,
+        mode === 'ai' ? 'The local AI is checking the systems. This can take up to a minute.' : 'Checking the systems (no AI).',
+        toastId,
+      ),
     onSuccess: (r) => {
-      if (r.status === 'succeeded') toastSuccess(`${label}: done`, undefined, toastId)
-      else toastProblem(`${label}: no result`, r.error ?? 'The AI did not finish.', toastId)
+      if (r.error) toastProblem(`${label}: done without AI`, r.error, toastId)
+      else toastSuccess(`${label}: done`, r.mode === 'rules' ? 'Built by rules, no AI' : undefined, toastId)
       void queryClient.invalidateQueries({ queryKey: [REPORTS, 'case', id] })
     },
   })

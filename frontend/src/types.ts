@@ -249,6 +249,19 @@ export interface CaseContext {
   account_history: AccountCase[]
   drafts: { draft_id: number; run_id: number | null; status: string; body: string; created_at: string }[]
   action_items: CaseActionItem[]
+  /** Northwind systems the agent checked, for the latest Get context and Generate draft runs, by run_id. */
+  systems_checked: Record<string, SystemCall[]>
+  /** Whether each of those runs used the local AI or the no-AI rules. */
+  run_modes: Record<string, 'ai' | 'rules'>
+}
+
+/** One request the agent made to a Northwind system. */
+export interface SystemCall {
+  system: 'helix' | 'aurora' | 'casetrack' | 'callcentre' | 'connect'
+  system_name: string
+  request: string
+  raw: string | null
+  summary: string | null
 }
 
 export interface CaseActionItem {
@@ -265,7 +278,10 @@ export interface CaseActionItem {
 export interface AgentRunResult {
   run_id: number
   status: 'succeeded' | 'failed'
+  /** A note, e.g. why the no-AI rules were used instead of the AI. */
   error: string | null
+  mode: 'ai' | 'rules'
+  systems_checked: SystemCall[]
 }
 export interface ContextResult extends AgentRunResult {
   action_items: { action_id: number; action_type: string; description: string; rationale: string | null; rank: number }[]

@@ -1,26 +1,33 @@
 """Complaint groups, subcategories, routing, and the Laya questions built from them."""
 
+# Group descriptions are what Laya matches the complaint against, so they use the words customers use.
+# Tuned against evals/laya_text_eval.py (run it after any change here).
 GROUPS: dict[str, dict] = {
     "Billing": {
-        "description": "a problem with a bill: a disputed or wrong amount, a bill based on an estimated "
-        "reading, or trouble paying and payment plans",
+        "description": "money: a bill or charge that is too high, wrong, doubled or not recognised, a bill "
+        "based on an estimated reading, fees or direct debits taken, or trouble paying - arrears, debt, "
+        "final notices and payment plans",
         "subcategories": ["Billing - disputed amount", "Billing - estimated read", "Payment - plan or arrears"],
     },
     "Metering": {
-        "description": "the meter was not read, or no meter reading was taken",
+        "description": "the meter reading itself: nobody has come to read the meter for months, or a meter "
+        "reading visit did not happen",
         "subcategories": ["Metering - no read taken"],
     },
     "Field services": {
-        "description": "a problem that needs the field or network teams: a power or water supply "
-        "interruption, water pressure or quality, or a missed appointment",
+        "description": "the physical supply or a home visit: an engineer or technician who did not turn up "
+        "or cancelled, power cuts, electricity tripping, flickering or going off, no water, low water "
+        "pressure, brown, cloudy, smelly or bad-tasting water, or bits in the water",
         "subcategories": ["Supply - interruption", "Water - pressure or quality", "Service - missed appointment"],
     },
     "Customer support": {
-        "description": "poor communication or customer service: no reply, no updates, unhelpful staff",
+        "description": "our staff or our communication, not the supply: no reply to emails, no callback, "
+        "being passed between departments, having to repeat themselves, rude or unhelpful staff",
         "subcategories": ["Service - poor communication"],
     },
     "General": {
-        "description": "anything else that fits none of the other groups",
+        "description": "a simple question or request where nothing has gone wrong: moving house and getting a "
+        "final bill, closing or opening an account, switching to a different tariff, opening hours",
         "subcategories": ["Other"],
     },
 }
@@ -61,9 +68,12 @@ PRIORITY_TARGET_DAYS = {"P1": 5, "P2": 10, "P3": 20}
 TARGET_DAYS_TO_PRIORITY = {days: p for p, days in PRIORITY_TARGET_DAYS.items()}
 
 URGENCY_LEVELS = [
-    "Routine: no immediate harm",
-    "At risk soon: money or service at risk soon",
-    "Harm now: the customer is harmed or at risk now",
+    "Routine: a question, a request, a disputed charge or poor service - annoying, but nobody is losing "
+    "money or going without a service right now",
+    "Losing out now: the customer is out of pocket right now, or is going without power, water or a "
+    "service they need",
+    "Danger: someone's health or safety is at risk, or a vulnerable person (elderly, ill, young children, "
+    "medical equipment) could be seriously harmed",
 ]
 
 # The spec does not word the emergency screen, so this is our wording.
@@ -75,7 +85,10 @@ EMERGENCY_QUESTION = {
 
 TEXT_FLAG_QUESTIONS: dict[str, str] = {
     "disconnection": "Does the customer mention a disconnection or shutoff notice?",
-    "vulnerable": "Does the customer mention a medical need, disability, age, or hardship?",
+    "vulnerable": "Does the customer mention a medical need, disability, old age, young children or a baby, "
+    "or serious financial hardship such as not affording food?",
+    "safety_risk": "Does the complaint describe a risk to someone's health or safety, such as unsafe or "
+    "contaminated drinking water, or no heating or power for someone who is ill?",
     "escalation_threat": "Does the customer mention the regulator, a lawyer, or the media?",
     "repeat_contact": "Does the customer say they have complained about this before?",
     "high_bill": "Does the customer say the bill is much higher than normal?",
