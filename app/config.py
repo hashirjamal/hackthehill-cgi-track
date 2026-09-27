@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # Domain AI agents (see app/agents/). gemma3 has no tool-calling support in Ollama at all;
     # gemma4 does (native, ~86% tool-calling accuracy per Google). Run `ollama pull gemma4` first.
     agent_enabled: bool = True  # False turns off AI chat everywhere (requirement N6)
-    agent_model: str = "gemma4"
+    agent_model: str = "gemma4:e4b-it-qat"  # small gemma4 build (6 GB); runs on the Mac GPU via Ollama
     ollama_host: str = "http://localhost:11434"
     agent_timeout_seconds: float = 30.0  # per Ollama call
 

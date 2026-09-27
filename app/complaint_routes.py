@@ -100,6 +100,10 @@ def _build_agent_model() -> BaseChatModel | None:
     return ChatOllama(
         model=settings.agent_model,
         base_url=settings.ollama_host,
+        # Thinking off: left to its default, gemma4 writes hundreds of hidden reasoning tokens before
+        # every tool call, which LangChain throws away. Measured: 291s per "Get context" with it, 21s without.
+        reasoning=False,
+        keep_alive="30m",  # stay loaded between clicks instead of reloading after Ollama's 5-minute default
         sync_client_kwargs={"timeout": settings.agent_timeout_seconds},
     )
 

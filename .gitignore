@@ -4,3 +4,4 @@ __pycache__/
 .env
 dev.db
 db/seed/
+northwind_systems/data/

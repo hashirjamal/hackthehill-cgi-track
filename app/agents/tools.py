@@ -201,7 +201,8 @@ def build_action_item_tool(db: Session, complaint: Complaint, run_id: int, lock:
             rationale: why this action, in one short phrase.
         """
         with lock:
-            rank = db.query(ActionItem).filter_by(complaint_id=complaint.complaint_id).count() + 1
+            # Ranked within this run: each click of "Get context" is a fresh list starting at 1.
+            rank = db.query(ActionItem).filter_by(run_id=run_id).count() + 1
             db.add(ActionItem(
                 complaint_id=complaint.complaint_id, run_id=run_id, action_type=action_type,
                 description=description, rationale=rationale, rank=rank,
