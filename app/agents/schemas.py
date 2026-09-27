@@ -1,21 +1,25 @@
-"""Pydantic models for the staff <-> domain-agent chat endpoint."""
-from typing import Literal
-
-from pydantic import BaseModel, Field
+"""Pydantic models for the two case-view buttons: "Get context" and "Generate draft"."""
+from pydantic import BaseModel
 
 
-class ChatTurnIn(BaseModel):
-    role: Literal["staff", "assistant"]
-    content: str
+class ActionItemOut(BaseModel):
+    action_id: int
+    action_type: str
+    description: str
+    rationale: str | None
+    rank: int
 
 
-class ChatRequest(BaseModel):
-    message: str
-    history: list[ChatTurnIn] = Field(default_factory=list)
-    staff_id: int = 1  # no staff auth yet; defaults to the seeded placeholder demo staff row
+class ContextResponse(BaseModel):
+    run_id: int
+    status: str  # "succeeded" or "failed"
+    action_items: list[ActionItemOut]
+    error: str | None = None
 
 
-class ChatResponse(BaseModel):
-    session_id: int
-    reply: str
-    draft_saved: bool
+class DraftOut(BaseModel):
+    run_id: int
+    status: str  # "succeeded" or "failed"
+    draft_id: int | None = None
+    body: str | None = None
+    error: str | None = None

@@ -93,42 +93,46 @@ curl -X POST localhost:8000/complaints/process -H 'content-type: application/jso
 
 Tests (no model download needed): `pip install pytest && python -m pytest`.
 
-## Domain AI agents (staff chat)
+## Domain AI agents (two buttons on a case, no chatbot)
 
-The domain agent never runs on its own. Classification (above) happens for every complaint; the
-agent only runs when a staff member opens a specific complaint and sends it a message:
+The domain agent never runs on its own, and there's no chat/message box - just two one-shot
+actions on a specific complaint's case view. Classification (above) happens for every complaint;
+the agent only runs when staff click one of these:
 
 ```bash
-curl -X POST localhost:8000/complaints/NW-124233/chat -H 'content-type: application/json' -d '{
-  "message": "Pull this account'\''s other complaints and tell me if this looks like a repeat issue."
-}'
+# "Get context" - runs the agent's read-only tools, returns action items, drafts nothing.
+curl -X POST localhost:8000/complaints/NW-124233/context
+
+# "Generate draft" - runs the same read-only tools, then drafts one reply for staff to review.
+curl -X POST localhost:8000/complaints/NW-124233/draft
 ```
 
 It never acts on a real account - it only looks things up (via [LangChain](https://python.langchain.com)
-tools bound to that one complaint) to help staff decide what to do, and only drafts a reply to the
-customer when staff explicitly ask for one (saved to `draft_responses` for review, never sent
-automatically). Every message, in both directions, is logged to `chat_sessions` / `chat_messages` for
-audit. A conversation is per visit - reopening the same complaint later starts a new session, not a
-continuation.
+tools bound to that one complaint, `app/agents/tools.py`) to help staff decide what to do. Each
+button binds a different single output tool, so the model can't produce the wrong kind of output
+regardless of what it decides to do: `/context` gives it `create_action_brief` (writes to
+`action_items`) and nothing else can write; `/draft` gives it `save_draft_reply` (writes to
+`draft_responses`, never sent automatically) and nothing else can write. Both log an `agent_runs`
+row (status, error, timestamps) for audit, whether the run succeeds or fails.
 
-Every domain shares four tools (`app/agents/tools.py`'s `build_shared_tools`): pulling the
-account's other complaints, the historic pattern for this category/region/system, the region's
-meter picture, and saving a draft reply. None of the three read tools reference anything
-domain-specific - they just look up whatever complaint is open - so there was no reason to build
-them five times. General additionally gets `search_knowledge_base`, a small static FAQ lookup for
-general information questions ("how do I pay my bill?" and similar).
+Every domain shares four context tools: reading the complaint's own details, pulling the
+account's other complaints, the historic pattern for this category/region/system, and the
+region's meter picture. None of them reference anything domain-specific - they just look up
+whatever complaint is open - so there was no reason to build them five times. General
+additionally gets `search_knowledge_base`, a small static FAQ lookup for general information
+questions ("how do I pay my bill?" and similar).
 
 By default it calls a local [Ollama](https://ollama.com) model (`OLLAMA_HOST`, default
 `http://localhost:11434`; `AGENT_MODEL`, default `gemma4` - **gemma3 has no tool-calling support in
 Ollama at all**, gemma4 does; pull whatever you actually run with `ollama pull <model>` and set
 `AGENT_MODEL` to match; `AGENT_TIMEOUT_SECONDS`, default `30.0`, per call). Set `AGENT_ENABLED=false`
-to turn the chat off entirely (requirement N6's confidentiality fallback) - callers get a fixed
-message instead of an LLM call, which is also what the test suite uses so it never needs a running
-Ollama server.
+to turn the agent off entirely (requirement N6's confidentiality fallback) - both endpoints record
+a failed run and return one instead of calling an LLM, which is also what the test suite uses so
+it never needs a running Ollama server.
 
-`app/agents/config.py`'s `AGENT_CONFIGS` holds each domain's instructions - a real but generic default
-today. That's the file to edit together to write the actual system-prompt wording; adding a domain's
-tool set is a new entry in `app/agents/tools.py`'s `TOOL_BUILDERS`.
+`app/agents/config.py`'s `AGENT_CONFIGS` holds each domain's instructions - a real but generic
+default today. That's the file to edit together to write the actual system-prompt wording; a new
+domain-specific tool is a new entry in `app/agents/tools.py`'s `build_context_tools_for`.
 
 ## Database setup (Tiger Data or any Postgres)
 

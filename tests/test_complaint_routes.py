@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.db import Base, get_db
 from app.laya_service import get_laya
 from app.main import app
-from app.models import AgentRun, ChatMessage, ChatSession, Classification, Complaint, DraftResponse
+from app.models import ActionItem, AgentRun, Classification, Complaint, DraftResponse
 
 
 class FakeLaya:
@@ -108,17 +108,21 @@ def test_process_complaints_classifies_without_running_any_agent(monkeypatch):
 
     db = TestSession()
     assert db.query(Classification).filter_by(complaint_id="NW-1").count() == 1
-    assert db.query(AgentRun).count() == 0  # nothing runs automatically any more
+    assert db.query(AgentRun).count() == 0  # nothing runs until a button is clicked
     db.close()
 
 
-def test_chat_with_an_unknown_complaint_returns_404(monkeypatch):
+def test_get_context_with_an_unknown_complaint_returns_404(monkeypatch):
     client, _ = _client(monkeypatch)
-    response = client.post("/complaints/NW-999/chat", json={"message": "hello"})
-    assert response.status_code == 404
+    assert client.post("/complaints/NW-999/context").status_code == 404
 
 
-def test_chat_uses_the_fallback_message_when_agent_is_disabled(monkeypatch):
+def test_generate_draft_with_an_unknown_complaint_returns_404(monkeypatch):
+    client, _ = _client(monkeypatch)
+    assert client.post("/complaints/NW-999/draft").status_code == 404
+
+
+def test_get_context_records_a_failed_run_when_agent_is_disabled(monkeypatch):
     client, TestSession = _client(monkeypatch)  # agent_enabled=False, set in _client
     db = TestSession()
     db.add(_complaint())
@@ -126,21 +130,21 @@ def test_chat_uses_the_fallback_message_when_agent_is_disabled(monkeypatch):
     db.commit()
     db.close()
 
-    response = client.post("/complaints/NW-1/chat", json={"message": "Analyze this account."})
+    response = client.post("/complaints/NW-1/context")
     assert response.status_code == 200
     body = response.json()
-    assert "turned off" in body["reply"]
-    assert body["draft_saved"] is False
+    assert body["status"] == "failed"
+    assert "turned off" in body["error"]
+    assert body["action_items"] == []
 
     db = TestSession()
-    session = db.query(ChatSession).filter_by(complaint_id="NW-1").one()
-    messages = db.query(ChatMessage).filter_by(session_id=session.session_id).order_by(ChatMessage.message_id).all()
-    assert [m.role for m in messages] == ["staff", "assistant"]
-    assert messages[0].content == "Analyze this account."
+    run = db.query(AgentRun).filter_by(complaint_id="NW-1").one()
+    assert run.status == "failed"
+    assert run.finished_at is not None
     db.close()
 
 
-def test_chat_runs_the_scripted_model_with_the_billing_tools_and_can_save_a_draft(monkeypatch):
+def test_get_context_runs_the_scripted_model_and_returns_the_action_items(monkeypatch):
     client, TestSession = _client(monkeypatch)
     db = TestSession()
     db.add(_complaint())
@@ -149,36 +153,73 @@ def test_chat_runs_the_scripted_model_with_the_billing_tools_and_can_save_a_draf
     db.close()
 
     fake = ScriptedChatModel(responses=[
-        AIMessage(content="", tool_calls=[{"name": "save_draft_reply", "args": {"body": "Sorry for the delay."}, "id": "1"}]),
-        AIMessage(content="I've drafted a reply for you to review."),
+        AIMessage(content="", tool_calls=[{
+            "name": "create_action_brief",
+            "args": {"action_type": "correct_bill", "description": "Reissue the bill", "rationale": "Estimated read"},
+            "id": "1",
+        }]),
+        AIMessage(content="Done."),
     ])
-    monkeypatch.setattr("app.complaint_routes._build_chat_model", lambda: fake)
+    monkeypatch.setattr("app.complaint_routes._build_agent_model", lambda: fake)
 
-    response = client.post("/complaints/NW-1/chat", json={"message": "Draft an apology for the delay."})
+    response = client.post("/complaints/NW-1/context")
     assert response.status_code == 200
     body = response.json()
-    assert body["reply"] == "I've drafted a reply for you to review."
-    assert body["draft_saved"] is True
+    assert body["status"] == "succeeded"
+    assert len(body["action_items"]) == 1
+    assert body["action_items"][0]["action_type"] == "correct_bill"
 
     db = TestSession()
-    draft = db.query(DraftResponse).filter_by(complaint_id="NW-1").one()
-    assert draft.body == "Sorry for the delay."
+    assert db.query(ActionItem).filter_by(complaint_id="NW-1").count() == 1
+    assert db.query(DraftResponse).count() == 0  # the context tool set has no drafting tool at all
     db.close()
 
 
-def test_chat_with_an_unclassified_complaint_still_works_with_no_tools(monkeypatch):
-    # No current Classification row at all (e.g. classification hasn't run yet) - agent_id and
-    # cfg both resolve to None, so the chat gets no tools and the generic default system prompt,
-    # but the endpoint still works rather than erroring.
+def test_generate_draft_runs_the_scripted_model_and_returns_the_draft(monkeypatch):
     client, TestSession = _client(monkeypatch)
     db = TestSession()
-    db.add(_complaint(complaint_id="NW-2", category="Metering - no read taken"))
+    db.add(_complaint())
+    db.add(_current_classification("NW-1", "Billing"))
     db.commit()
     db.close()
 
-    fake = ScriptedChatModel(responses=[AIMessage(content="This case isn't classified yet, but I can still chat.")])
-    monkeypatch.setattr("app.complaint_routes._build_chat_model", lambda: fake)
+    fake = ScriptedChatModel(responses=[
+        AIMessage(content="", tool_calls=[{
+            "name": "save_draft_reply", "args": {"body": "Sorry for the delay."}, "id": "1",
+        }]),
+        AIMessage(content="Done."),
+    ])
+    monkeypatch.setattr("app.complaint_routes._build_agent_model", lambda: fake)
 
-    response = client.post("/complaints/NW-2/chat", json={"message": "What's up with this case?"})
+    response = client.post("/complaints/NW-1/draft")
     assert response.status_code == 200
-    assert response.json()["reply"] == "This case isn't classified yet, but I can still chat."
+    body = response.json()
+    assert body["status"] == "succeeded"
+    assert body["body"] == "Sorry for the delay."
+
+    db = TestSession()
+    assert db.query(DraftResponse).filter_by(complaint_id="NW-1").count() == 1
+    assert db.query(ActionItem).count() == 0  # the draft tool set has no action-item tool at all
+    db.close()
+
+
+def test_get_context_for_an_unclassified_complaint_still_works(monkeypatch):
+    # No current Classification row at all - agent_id resolves to None, AgentRun falls back to
+    # the "general" ai_agents row, and the case still gets the shared context tools.
+    client, TestSession = _client(monkeypatch)
+    db = TestSession()
+    db.add(_complaint(complaint_id="NW-2", category="Other"))
+    db.commit()
+    db.close()
+
+    fake = ScriptedChatModel(responses=[AIMessage(content="No actions needed.")])
+    monkeypatch.setattr("app.complaint_routes._build_agent_model", lambda: fake)
+
+    response = client.post("/complaints/NW-2/context")
+    assert response.status_code == 200
+    assert response.json()["status"] == "succeeded"
+
+    db = TestSession()
+    run = db.query(AgentRun).filter_by(complaint_id="NW-2").one()
+    assert run.agent_id == "general"
+    db.close()

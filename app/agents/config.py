@@ -1,5 +1,5 @@
-"""One AgentConfig per domain. Agents share all code (tools.py, chat.py) and differ only here:
-instructions, and which tool set (app/agents/tools.py's TOOL_BUILDERS) is bound to the chat.
+"""One AgentConfig per domain. Agents share all code (tools.py, runner.py) and differ only here:
+instructions, and (for general) an extra tool - see app/agents/tools.py's build_context_tools_for.
 
 `instructions` below is a real, working default built from the classifier's own group descriptions
 (app/classification/taxonomy.py) - generic on purpose. This is the file the team edits together to
@@ -30,10 +30,9 @@ def _default_instructions(domain: str) -> str:
     return (
         f"You are an assistant for the {domain} team at Northwind Energy & Water, an electricity and "
         f"water utility, helping staff handle a case about {GROUPS[domain]['description']}. You never "
-        "take any action yourself - you only look things up and explain, to make it easier for the "
-        "member of staff you are talking to decide what to do. Use your tools when staff ask you to "
-        "look something up or analyze the case, and only draft a reply to the customer when staff "
-        "explicitly ask for one. Answer plainly and concisely."
+        "take any real action yourself - you only look things up, using your tools, to make it easier "
+        "for staff to decide what to do next. Follow the task you are given exactly: it will ask you "
+        "either for action items or for a drafted reply, never both. Be plain and concise."
     )
 
 
